@@ -1,4 +1,4 @@
-﻿//ANTIGUO
+﻿//EoSD2FW v0.2 [Gabolate 2026. Apache 2.0 License]
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -6,12 +6,35 @@ using System.Runtime.CompilerServices;
 
 const bool Debugging = false;
 
+const bool FIND_DEBUG = false;
+
+const bool LINE_DEBUG = false;
+
+const bool SUB_DEBUG = false;
+
+const bool LASER_DEBUG = false;
+
+const bool BOSSEND_DEBUG = false;
+
+const bool REGISTER_DEBUG = false;
+
 string lifeInt = "";
 string timeInt = "";
 string deathFunc = "";
 string lifeFunc = "";
 
+bool usesHardcoded = false; //for bullets in functions that have hardcoded instructions
+
+bool customLife = false; //used to override enemy_life_set with the Sub-Params' life
+
+bool customRank = false; //used to override bullet_rank_influence with the Sub-Params' version
+
+//unused!
+bool customLifeBar = false; //uses to override enemy_lifebar_color with the Sub-Params' bar
+
 string[] eosdSTG = new string[0];
+
+string[] SubsFile = new string[0];
 
 string currentFunction = "";
 
@@ -27,6 +50,11 @@ List<string> FuncsFound = new List<string>(); //used to store the stage's functi
 List<string> bossEndFunctions = new List<string>(); //Used to store the functions used by bosses when they are defeated. (Mainly to tell the timeline when to resume)
 
 List<string> noWaitFunctions = new List<string>(); //used to store functions by non-boss enemies that use death_callback_sub so any wait instructions are skipped
+
+
+List<string> callbackClearFunctions = new List<string>(); //[UNUSED!] used to store the functions that are referenced by callbacks so it can clear them after jumping
+
+Dictionary<string, List<string>> SubParams = new Dictionary<string, List<string>>(); //Used to store instructions that will be added on the start of functions
 
 //unused:
 //List<MultiCallback> callbacks = new List<MultiCallback>(); //Used to store the functions to run on timeouts and when life reaches certain value
@@ -93,8 +121,16 @@ Principal();
 
 void Principal()
 {
-
-    Console.WriteLine("Write the number of the stage to convert (1-7)");
+    Console.WriteLine("Input the Sub-Params file:");
+    string sp = Console.ReadLine();
+    if (sp == null || !File.Exists(sp))
+    {
+        Console.WriteLine("The Sub-Param could NOT be found!");
+        Environment.Exit(-1);
+    }
+    SubsFile = File.ReadAllLines(sp);
+    Console.WriteLine();
+    Console.WriteLine("Write the number of the stage to convert (1-7):");
     string st = Console.ReadLine();
 
     if (st != null)
@@ -104,6 +140,7 @@ void Principal()
         {
             if (stg > 0 && stg <= 7)
             {
+                ReadSubEntries((int)stg);
                 Convert((int)stg);
             }
             /*
@@ -178,7 +215,7 @@ void Convert(int stage)
     a("MainLoop:");
     //b(1, "ecl_time_sub((RAND_INT % delay) + (delay / 5));");
     //b(1, "ecl_time_sub(delay / 5);");
-    b(1, "ecl_time_sub((RAND_INT % (delay / 2)) + (delay / 2));");
+    b(1, "ecl_time_sub((BOSS_ALIVE ? (RAND_INT % (delay / 2)) + (delay / 2) : (RAND_INT % delay / 5)));");
     b(1, "shoot_now(0);");
     b(1, "goto MainLoop;");
     a("}");
@@ -193,7 +230,14 @@ void Convert(int stage)
     a("");
     a("void SpellEnd()");
     a("{");
-    b(1, "bullet_cancel_radius(640.0f);");
+    b(1, "if (SPELL_TIMEOUT)");
+    b(1, "{");
+    b(2, "bullet_clear_radius(640.0f);");
+    b(1, "}");
+    b(1, "else");
+    b(1, "{");
+    b(2, "bullet_cancel_radius(640.0f);");
+    b(1, "}");
     b(1, "phase_timer_clear();");
     b(1, "async_stop_all();");
     b(1, "enemy_kill_all_stones();");
@@ -434,22 +478,22 @@ void Convert(int stage)
         else if (c(i, "ins_0(") && c(i, ");")) //Spawn enemy at absolute position
         {
             TimelineBossCheck(stage);
-            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/} + 1);");
+            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
         }
         else if (c(i, "ins_2(") && c(i, ");")) //Spawn Mirrored enemy at absolute position
         {
             TimelineBossCheck(stage);
-            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs_mirror({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/} + 1);");
+            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs_mirror({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
         }
         else if (c(i, "ins_4(") && c(i, ");")) //Spawn enemy at random position
         {
             TimelineBossCheck(stage);
-            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs({ex(i, 2) /*Function*/}, RAND_FLOAT_SIGNED * 192.0f, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/} + 1);");
+            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs({ex(i, 2) /*Function*/}, RAND_FLOAT_SIGNED * 192.0f, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
         }
         else if (c(i, "ins_6(") && c(i, ");")) //Spawn Mirrored enemy at random position
         {
             TimelineBossCheck(stage);
-            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs_mirror({ex(i, 2) /*Function*/}, RAND_FLOAT_SIGNED * 192.0f, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/} + 1);");
+            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs_mirror({ex(i, 2) /*Function*/}, RAND_FLOAT_SIGNED * 192.0f, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
         }
         else if (c(i, "ins_8(") && c(i, ");")) //Shows dialog
         {
@@ -486,45 +530,79 @@ void Convert(int stage)
     //0 = Timeout
     //1 = Life
     //2 = Death
-    a("void BossCallback(int I0, int I1, int I2, int I3, int IC0, int IC1, int IC2, int IC3, float F0, float F1, float F2, float F3)");
+    /*a("void BossCallback(int I0, int I1, int I2, int I3, int IC0, int IC1, int IC2, int IC3, float F0, float F1, float F2, float F3)");
     a("{");
-
-    b(1, "EI0 = 1;"); //life
-    b(1, "EI1 = GI0;");
-    b(1, "if (SPELL_TIMEOUT)"); //timeout
+    b(1, "EI1 = 0;"); //default 0 (none)
+    b(1, "if (SPELL_TIMEOUT && GF7 > 0.5f)"); //timeout
     b(1, "{");
-    b(2, "EI0 = 0;");
-    b(2, "EI1 = GI1;");
-    b(2, "GI1 = 999999;");
+    b(2, "EI1 = _S(GF7);");
+    b(2, "GF7 = 0.0f;"); //Timeout function
+    b(2, "GF6 = 0.0f;"); //Timeout amount
     b(1, "}");
-    b(1, "else if (SELF_LIFE < 1)"); //death
+    b(1, "else if (SELF_LIFE < 1 && GI0 >= 1)"); //death
     b(1, "{");
-    b(2, "EI0 = 2;");
-    b(2, "EI1 = GI2;");
-    b(2, "GI2 = 999999;");
+    b(2, "EI1 = GI0;");
+    b(2, "GI0 = 0;"); //Death function
     b(1, "}");
-    b(1, "else");
+    b(1, "else if (GI2 >= 1)"); //life
     b(1, "{");
-    b(2, "GI0 = 999999;");
+    b(2, "EI1 = GI2;"); 
+    b(2, "GI2 = GI0;"); //changes the life function to the death function
+    b(2, "GI1 = 0;"); //Life amount
+    b(2, "if (GI0 > 0) callback_ex(0, 0, _S(GF6), \"BossCallback\");"); //sets a new interrupt if a death function was found
     b(1, "}");
     a("");
+
+    a("");
     b(1, "switch(EI1)");
-    b(1, "{");
-    for (int i = 0; i < FuncsFound.Count; i++)
+    b(1, "{");*/
+    /*
+        a("void Callbacks()"); //sets a callback_ex by converting the int-1 into a sub
+        a("{");
+        //b(1, "int temporal = (type) ? _S(GF6) : GI2;");
+        b(1, "switch(GI2)");
+        b(1, "{");
+        for (int i = 0; i < FuncsFound.Count; i++)
+        {
+            b(2, $"case {i + 1}:");
+            b(3, $"callback_ex(0, (GI0 >= 1) ? GI0 : -1, GI1, \"{FuncsFound[i]}\");");
+            /*if (AddBackupsAlt(FuncsFound[i]))
+            {
+                b(3, $"@{FuncsFound[i]}();");
+            }
+            else
+            {
+                b(3, $"@{FuncsFound[i]}(0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f);");
+            }*/
+    /*b(3, "break;");
+}
+b(1, "}");
+
+b(1, "if (GF6 > 0.25f)");
+b(1, "{");
+b(2, "int temporal = _S(GF6);");
+b(2, "switch(temporal)");
+b(2, "{");
+for (int i = 0; i < FuncsFound.Count; i++)
+{
+    b(3, $"case {i + 1}:");
+    b(4, $"timer_callback_sub(0, \"{FuncsFound[i]}\");");
+    /*if (AddBackupsAlt(FuncsFound[i]))
     {
-        b(2, $"case {i}:");
-        if (AddBackupsAlt(FuncsFound[i]))
-        {
-            b(3, $"@{FuncsFound[i]}();");
-        }
-        else
-        {
-            b(3, $"@{FuncsFound[i]}(0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f);");
-        }
-        b(3, "break;");
+        b(3, $"@{FuncsFound[i]}();");
     }
+    else
+    {
+        b(3, $"@{FuncsFound[i]}(0, 0, 0, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f);");
+    }*/
+    //b(4, "break;");
+    /*}
+    b(2, "}");
+
     b(1, "}");
-    a("}");
+    a("}");*/
+    /*b(1, "}");
+    a("}");*/
     a("");
 
 
@@ -532,7 +610,7 @@ void Convert(int stage)
     Console.WriteLine($"Timeline position after scans: {timelinePos}");
     for (int i = 0; i < timelinePos; i++)
     {
-        Console.WriteLine($"Reading line: {i}");
+        if (LINE_DEBUG) Console.WriteLine($"Reading line: {i}");
         D();
         if (s(i, "!") && ex(i, 1).Length <= 6 && i < timelinePos) //Difficulty parameters
         {
@@ -553,9 +631,11 @@ void Convert(int stage)
             alreadySetLaser = false;
             tempLaserMoves = false;
             alreadySetFuncs = false;
+            customLife = false;
+            customLifeBar = false;
             dialogInterrupt = "";
             currentFunction = ex(i, 2).Replace("()", "");
-            Console.WriteLine($"Processing Sub/Function: {currentFunction}");
+            if (SUB_DEBUG) Console.WriteLine($"Processing Sub/Function: {currentFunction}");
             a("");
             if (enemyFunctions.Contains(ex(i, 2).Replace("()", ""))) //requires variables workaround
             {
@@ -568,6 +648,14 @@ void Convert(int stage)
                 a(eosdSTG[i].Replace("sub ", "void ").Replace("()", "(int I0, int I1, int I2, int I3, int IC0, int IC1, int IC2, int IC3, float F0, float F1, float F2, float F3)"));
                 a("{");
             }
+
+            /*CurrentSubEntry = HasSubEntry(currentFunction);
+            if (CurrentSubEntry != -1)
+            {
+                ApplyEntryCallback();
+            }*/
+
+
 
             if (f(currentFunction, "effect_particle(3, 2, #80ff80ff);", ref dummyInt) && f(currentFunction, "enemy_life_set(0);", ref dummyInt) && f(currentFunction, "life_callback_threshold(-1);", ref dummyInt))
             {
@@ -587,7 +675,14 @@ void Convert(int stage)
             b(1, "EF1 = 0.0f;");
             b(1, "EF2 = 0.0f;");
             b(1, "EF3 = 0.0f;");
-            b(1, "int temp = 0;");
+            usesHardcoded = false;
+            if (f(currentFunction, "ex_ins_", ref dummyInt))
+            {
+                b(1, "int hardcoded1 = 0;");
+                b(1, "int hardcoded2 = 0;");
+                b(1, "int hardcoded3 = 0;");
+                usesHardcoded = true;
+            }
 
             lifeFunc = "";
             //SetFuncs(0);
@@ -600,6 +695,43 @@ void Convert(int stage)
                 }
             }
 
+            if (f(currentFunction, "boss_set(", ref dummyInt))
+            {
+                b(1, "GI0 = 0;");
+                b(1, "GI1 = 0;");
+                b(1, "GI2 = 0;");
+                b(1, "GF6 = 0.0f;");
+                b(1, "GF7 = 0.0f;");
+            }
+
+
+            if (SubParams.ContainsKey(currentFunction))
+            {
+                for (int j = 0; j < SubParams[currentFunction].Count; j++)
+                {
+                    if (SubParams[currentFunction][j].Contains("!"))
+                    {
+                        a(SubParams[currentFunction][j]);
+                    }
+                    else
+                    {
+                        if (SubParams[currentFunction][j].Contains("enemy_life_set"))
+                        {
+                            customLife = true;
+                        }
+                        else if (SubParams[currentFunction][j].Contains("enemy_lifebar_color"))
+                        {
+                            customLifeBar = true;
+                        }
+                        else if (SubParams[currentFunction][j].Contains("bullet_rank_influence"))
+                        {
+                            customRank = true;
+                            SubParams[currentFunction][j] = "";
+                        }
+                        b(1, SubParams[currentFunction][j]);
+                    }
+                }
+            }
 
             alreadySetEX = true;
 
@@ -610,6 +742,7 @@ void Convert(int stage)
                 b(1, "enemy_kill_all();");
                 b(1, "enemy_flags_clear(1024);");
                 b(1, "GI3 = 0;");
+                b(1, "boss_set_life_count(0);");
                 if (currentBoss == 0) //daiyousei
                 {
                     switch (stage)
@@ -619,9 +752,9 @@ void Convert(int stage)
                             break;
                     }
                 }
-                b(1, "if (!SPELL_TIMEOUT) effect_sound(5);");
-                if (f(currentFunction, "enemy_delete(", ref dummyInt) && !f(currentFunction, "death_callback_sub", ref dummyInt))
+                if (f(currentFunction, "enemy_delete(", ref dummyInt) && !f(currentFunction, "death_callback_sub", ref dummyInt) && !f(currentFunction, "timer_callback", ref dummyInt) && !f(currentFunction, "life_callback", ref dummyInt))
                 {
+                    b(1, "if (!SPELL_TIMEOUT) effect_sound(5);");
                     b(1, "EI0 = 999;");
                     b(1, "effect_screen_shake(30, 12, 0);"); //screenshake if the enemy gets deleted afterwards
                 }
@@ -672,7 +805,7 @@ void Convert(int stage)
         else if (c(i, "enemy_delete(") && c(i, ");")) //deletes enemy if '1' and otherwise stops executing functions
         {
             D();
-            b(1, $"if ({ex(i, 2)} == 1)");
+            b(1, $"if ({ex(i, 2)} == 1 || SELF_LIFE < 1)");
             b(1, "{");
             b(2, "enemy_delete();");
             b(1, "}");
@@ -694,9 +827,9 @@ void Convert(int stage)
         else if (c(i, "loop(") && c(i, ");")) //loops
         {
             D();
+            b(1, $"{ex(i, 4)} -= 1;");
             b(1, $"if ({ex(i, 4)} != 0)");
             b(1, "{");
-            b(2, $"{ex(i, 4)} -= 1;");
             b(2, $"goto {ex(i, 3)} @ {ex(i, 2)};");
             b(1, "}");
         }
@@ -728,7 +861,7 @@ void Convert(int stage)
         else if (c(i, "set_var_self_x(") & c(i, ");")) //get self x
         {
             D();
-            b(1, $"{ex(i, 2)} = _S(SELF_X);");
+            b(1, $"{ex(i, 2)} = _S(SELF_X - SCREEN_FIX);");
         }
         else if (c(i, "set_var_self_y(") & c(i, ");")) //get self y
         {
@@ -921,7 +1054,30 @@ void Convert(int stage)
                     break;
             }
         }
-        else if (c(i, "drop_items("))
+        else if (c(i, "enemy_flag_invisible(") && c(i, ");")) //Makes the enemy "invisible"
+        {
+            D();
+            b(1, $"if ({ex(i, 2)} % 2 == 1)"); //on (invisible)
+            b(1, "{");
+            b(2, "anm_move_position_slot(0, 999999.0f, 999999.0f);");
+            b(2, "anm_move_position_slot(1, 999999.0f, 999999.0f);");
+            b(2, "anm_move_position_slot(2, 999999.0f, 999999.0f);");
+            b(2, "anm_move_position_slot(3, 999999.0f, 999999.0f);");
+            b(1, "}");
+            b(1, "else"); //off (visible)
+            b(1, "{");
+            b(2, "anm_move_position_slot(0, 0.0f, 0.0f);");
+            b(2, "anm_move_position_slot(1, 0.0f, 0.0f);");
+            b(2, "anm_move_position_slot(2, 0.0f, 0.0f);");
+            b(2, "anm_move_position_slot(3, 0.0f, 0.0f);");
+            b(1, "}");
+        }
+        else if (c(i, "enemy_kill_all();")) //Clears all enemies
+        {
+            D();
+            a(eosdSTG[i]);
+        }
+        else if (c(i, "drop_items(")) //drops boss items
         {
             D();
             if (bossEndFunctions.Contains(currentFunction)) //used when an enemy explodes
@@ -938,20 +1094,33 @@ void Convert(int stage)
             }
             else
             {
-
+                b(1, $"item_bonus_count_reset();");
+                b(1, $"item_drop_area(48.0f, 48.0f);");
+                b(1, $"item_bonus_count_set({BossItemDrops()});");
+                b(1, $"drop_item_rewards();");
             }
+        }
+        else if (c(i, "drop_item_id(")) //drops an specific item
+        {
+            b(1, "item_bonus_count_reset();");
+            b(1, "item_drop_area(0.0f, 0.0f);");
+            b(1, $"item_bonus_count_set({GetItem(ex(i, 2))}, 1);");
+            b(1, "drop_item_rewards();");
         }
         else if (c(i, "enemy_life_set(")) //sets enemy's life
         {
             D();
-            b(1, $"if ({ex(i, 2)} == 0)");
-            b(1, "{");
-            b(2, "enemy_delete();");
-            b(1, "}");
-            b(1, "else");
-            b(1, "{");
-            b(2, $"enemy_life_set(_S(_f({ex(i, 2) /*Life*/}) * 2.25f) + 62);");
-            b(1, "}");
+            if (!customLife)
+            {
+                b(1, $"if ({ex(i, 2)} <= 0)");
+                b(1, "{");
+                b(2, "enemy_delete();");
+                b(1, "}");
+                b(1, "else");
+                b(1, "{");
+                b(2, $"enemy_life_set(_S(_f({ex(i, 2) /*Life*/}) * 1.75f) + 62);");
+                b(1, "}");
+            }
         }
         else if (c(i, "enemy_create(") && c(i, ");")) //creates a new enemy
         {
@@ -975,15 +1144,20 @@ void Convert(int stage)
             D();
             b(1, $"move_angle_abs_interp(99999, 7, {ex(i, 2)});");
         }
-        else if (c(i, "move_acceleration(") && c(i, ");")) //set direction and speed
+        else if (c(i, "move_acceleration(") && c(i, ");")) //set acceleration for each frame
         {
             D();
             b(1, $"move_speed_abs_interp(99999, 7, {ex(i, 2)});");
         }
-        else if (c(i, "move_rand_in_bounds(-3.1415927f, 3.1415927f);") && c(i + 1, "move_speed(") && c(i + 2, "move_as_interp_decelerate")) //simplifying stuff basically
+        else if (c(i, "move_rand_in_bounds(-3.14") && c(i, ", 3.14") && c(i + 1, "move_speed(") && c(i + 2, "move_as_interp_decelerate")) //simplifying stuff basically
         {
             D();
-            b(1, $"move_rand_interp_abs({ex(i + 2, 2)}, 4, {ex(i + 1, 2)});");
+            //moves right or left depending on the player's position (up and down are random)
+            b(1, "if (SELF_X >= PLAYER_X || SELF_X > 72.0f)  move_angle_abs(3.142f + (1.571f * RAND_FLOAT_SIGNED));"); //boss is on the right, move to the left
+            b(1, "if (SELF_X < PLAYER_X || SELF_X < -72.0f) move_angle_abs(1.571f * RAND_FLOAT_SIGNED);"); //boss is on the left, move to the right
+            b(1, $"move_speed_abs({ex(i + 1, 2)} * 1.5f);"); //Makes it faster in a random way
+            b(1, $"move_speed_abs_interp({ex(i + 2, 2)}, 4, 0.0f);");
+            b(1, $"if (RAND_INT % 40 == 0) move_rand_interp_abs({ex(i + 2, 2)}, 4, {ex(i + 1, 2)});"); // 1/40 (aprox 2.5%) chance of being really random
             i += 2;
         }
         else if (c(i, "move_speed") && c(i, ");")) //set speed
@@ -1016,6 +1190,11 @@ void Convert(int stage)
             D();
             b(1, $"move_position_abs_interp({ex(i, 2)}, 2, {ex(i, 3)} + SCREEN_FIX, {ex(i, 4)});");
         }
+        else if (c(i, "move_position_interp_linear") && c(i, ");")) //linear movement
+        {
+            D();
+            b(1, $"move_position_abs_interp({ex(i, 2)}, 0, {ex(i, 3)} + SCREEN_FIX, {ex(i, 4)});");
+        }
         else if (c(i, "move_rand_in_bounds(") && c(i, ");")) //random angle with range
         {
             D();
@@ -1043,7 +1222,7 @@ void Convert(int stage)
             b(2, "enemy_flags_set(1);");
             b(1, "}");
         }
-        else if (c(i, "enemy_flag_collision(") && c(i, ");")) //toggles hurtbox
+        else if (c(i, "enemy_flag_can_take_damage(") && c(i, ");")) //toggles hurtbox
         {
             D();
             b(1, $"if ({ex(i, 2)} % 2 == 1)");
@@ -1055,27 +1234,57 @@ void Convert(int stage)
             b(2, "enemy_flags_set(2);");
             b(1, "}");
         }
+        else if (c(i, "enemy_flag_interactable") && c(i, ");")) //no hitbox nor hurtbox and can't be cleared
+        {
+            D();
+            b(1, $"if ({ex(i, 2)} % 2 == 1)");
+            b(1, "{");
+            b(2, "enemy_flags_clear(32);");
+            b(1, "}");
+            b(1, "else");
+            b(1, "{");
+            b(2, "enemy_flags_set(32);");
+            b(1, "}");
+        }
         else if (c(i, "death_callback_sub(") && c(i, ");")) //function to go to after hp is 0
         {
             D();
             //SetFuncs(3);
             //b(1, $"death_callback_sub({ex(i, 2)});");
-            b(1, "if (BOSS_ALIVE)");
-            b(1, "{");
-            b(2, $"callback_ex(1, 0, 0, \"BossCallback\");");//{ex(i, 2)});");
-            b(1, "}");
-            b(1, "else");
-            b(1, "{");
-            if (!noWaitFunctions.Contains(ex(i, 2).Replace("\"", ""))) noWaitFunctions.Add(ex(i, 2).Replace("\"", ""));
+            if (!f(currentFunction, "boss_set(", ref dummyInt))
+            {
+                b(1, "if (!BOSS_ALIVE)");
+                b(1, "{");
+                b(2, "");
+                //b(2, $"GI0 = {ex(i, 2).Replace("\"", "").Replace("Sub", "")} + 1;");
 
-            b(2, $"death_callback_sub(\"{ex(i, 2).Replace("\"", "")}Instant\");"); 
-            b(2, $"GI2 = {ex(i, 2).Replace("Sub", "").Replace("\"", "")};");
-            b(1, "}");
-        }
+
+                //b(2, $"callback_ex(1, 0, -1, {ex(i, 2)});");//{ex(i, 2)});");
+                /*b(1, "}");
+                b(1, "else");
+                b(1, "{");*/
+                if (!noWaitFunctions.Contains(ex(i, 2).Replace("\"", ""))) noWaitFunctions.Add(ex(i, 2).Replace("\"", ""));
+
+                b(2, $"death_callback_sub(\"{ex(i, 2).Replace("\"", "")}Instant\");");
+                //b(2, $"GI2 = {ex(i, 2).Replace("Sub", "").Replace("\"", "")};");
+                b(1, "}");
+            }
+        }/*
         else if (c(i, "life_callback_threshold(") && c(i, ");"))
         {
             D();
-            b(1, $"callback_ex(0, {ex(i, 2)}, GI1, \"BossCallback\");");
+            //b(1, $"GI0 = {ex(i, 2)};");
+            //b(1, $"GI1 = {ex(i, 2)};");
+            //b(1, "@Callbacks();");
+
+            if (CurrentSubEntry != -1)
+            {
+                temporalEntry = Subs[CurrentSubEntry];
+                temporalEntry.LifeAmt = ex(i, 2).Replace("\"", "");
+                Subs[CurrentSubEntry] = temporalEntry;
+                ApplyEntryCallback();
+            }
+            //b(1, $"callback_ex(0, GI0, GI1, \"BossCallback\");"); //FIX
             b(1, $"enemy_lifebar_color(0, _f({ex(i, 2)}), 0);");
             //SetFuncs(2);
             //lifeInt = ex(i, 2);
@@ -1087,9 +1296,19 @@ void Convert(int stage)
             //SetFuncs(2);
             //lifeInt = ex(i, 2).Replace("\"", "");
             //b(1, $"callback_ex(0, LIFEINT, TIMEINT, \"L{lifeInt.Replace("Sub", "")}T{timeInt.Replace("Sub", "")}\");");
-            
-            
-            b(1, $"GI0 = {ex(i, 2).Replace("Sub", "").Replace("\"", "")};");
+
+            //if (!callbackClearFunctions.Contains(ex(i, 2).Replace("\"", "").Replace("Sub", ""))) callbackClearFunctions.Add(ex(i, 2).Replace("\"", "").Replace("Sub", ""));
+            //b(1, $"GI2 = {ex(i, 2).Replace("\"", "").Replace("Sub", "")} + 1;");
+            //b(1, "@Callbacks();");
+
+            if (CurrentSubEntry != -1)
+            {
+                temporalEntry = Subs[CurrentSubEntry];
+                temporalEntry.OnLife = ex(i, 2).Replace("\"", "");
+                Subs[CurrentSubEntry] = temporalEntry;
+                ApplyEntryCallback();
+            }
+            //b(1, $"callback_ex(1, GI1, _S(GF6), \"BossCallback\");");
             //lifeFunc = ex(i, 2);
             //b(1, $"callback_ex(0, temp, 0, {ex(i, 2)});");
             //CheckCallbacks();
@@ -1097,7 +1316,19 @@ void Convert(int stage)
         else if (c(i, "timer_callback_threshold(") && c(i, ");"))
         {
             D();
-            b(1, $"callback_ex(1, 0, {ex(i, 2)}, \"BossCallback\");");
+
+            if (CurrentSubEntry != -1)
+            {
+                temporalEntry = Subs[CurrentSubEntry];
+                temporalEntry.TimeAmt = ex(i, 2).Replace("\"", "");
+                Subs[CurrentSubEntry] = temporalEntry;
+                ApplyEntryCallback();
+            }
+            //b(1, $"GI1 = {ex(i, 2)};");
+            //b(1, "@Callbacks();");
+            //b(1, $"GF6 = _f({ex(i, 2)}) + 0.25f;");
+            //b(1, $"callback_ex(1, GI1, _S(GF6), \"BossCallback\");");
+            //b(1, $"if (GI2 < 1) GI2 = GI0;");
             //SetFuncs(1);
             //b(1, $"temp = {ex(i, 2)};");
             /*if (!f(currentFunction, "timer_callback_sub", ref dummyInt))
@@ -1109,7 +1340,8 @@ void Convert(int stage)
                     {
                         temp = ex(dummyInt, 2);
 
-                        b(2, $"callback_ex(1, 0, temp, {ex(dummyInt, 2)});");
+              if (!callbackClearFunctions.Contains(ex(i, 2).Replace("\"", "").Replace("Sub", ""))) callbackClearFunctions.Add(ex(i, 2).Replace("\"", "").Replace("Sub", ""));
+                      b(2, $"callback_ex(1, 0, temp, {ex(dummyInt, 2)});");
 
                         //b(2, $"if ((EI3 & 2) == 2) callback_ex(0, {lifeInt}, temp, {(lifeFunc == "" ? "\"\"" : lifeFunc)});");
                         b(2, $"timer_callback_sub(1, {temp});");
@@ -1117,11 +1349,24 @@ void Convert(int stage)
                         exitInsideLoop = true;
                     }
                 }
-            }*/
+            }
         }
         else if (c(i, "timer_callback_sub(") && c(i, ");"))
         {
             D();
+            //if (!callbackClearFunctions.Contains(ex(i, 2).Replace("\"", "").Replace("Sub", ""))) callbackClearFunctions.Add(ex(i, 2).Replace("\"", "").Replace("Sub", ""));
+
+            //b(1, $"GF6 = _f({ex(i, 2).Replace("\"", "").Replace("Sub", "")} + 1) + 0.25f;");
+            //b(1, $"@Callbacks();");
+            //b(1, $"timer_callback_sub(0, {ex(i, 2)});");
+
+            if (CurrentSubEntry != -1)
+            {
+                temporalEntry = Subs[CurrentSubEntry];
+                temporalEntry.OnTime = ex(i, 2).Replace("\"", "");
+                Subs[CurrentSubEntry] = temporalEntry;
+                ApplyEntryCallback();
+            }
             //SetFuncs(1);
             /*if (f(currentFunction, "death_callback_sub(", ref dummyInt))
             {
@@ -1129,23 +1374,26 @@ void Convert(int stage)
             }
             b(2, $"if ((EI3 & 2) == 2) callback_ex(0, {(lifeInt == "" ? "0" : lifeInt)}, temp, {(lifeFunc == "" ? "\"\"" : lifeFunc)});");
             */
-            b(1, $"GI1 = {ex(i, 2).Replace("Sub", "").Replace("\"", "")};");
-            b(1, $"timer_callback_sub(1, \"BossCallback\");");
-            //b(2, $"callback_ex(1, LIFEINT, TIMEINT, {ex(i, 2)});");
+        //b(1, $"GF7 = _f({ex(i, 2).Replace("\"", "").Replace("Sub", "")} + 1) + 0.25f;");
+        //b(1, $"callback_ex(1, GI1, _S(GF6), \"BossCallback\");");
+        //b(1, $"GI1 = {ex(i, 2).Replace("Sub", "").Replace("\"", "")};");
+        //b(1, $"timer_callback_sub(1, \"BossCallback\");");
+
+        //b(2, $"callback_ex(1, LIFEINT, TIMEINT, {ex(i, 2)});");
 
 
-            /*b(1, $"if (LIFEINT <= 0)");
-            b(1, "{");
+        /*b(1, $"if (LIFEINT <= 0)");
+        b(1, "{");
 
-            b(1, "}");
-            b(1, "else");
-            b(1, "{");
-            b(2, $"timer_callback_sub(0, {ex(i, 2)});");
-            b(1, "}");*/
-            //timeInt = ex(i, 2).Replace("\"", "");
-            //b(1, $"callback_ex(0, LIFEINT, TIMEINT, \"L{lifeInt.Replace("Sub", "")}T{timeInt.Replace("Sub", "")}\");");
-            //CheckCallbacks();
-        }
+        b(1, "}");
+        b(1, "else");
+        b(1, "{");
+        b(2, $"timer_callback_sub(0, {ex(i, 2)});");
+        b(1, "}");
+        //timeInt = ex(i, 2).Replace("\"", "");
+        //b(1, $"callback_ex(0, LIFEINT, TIMEINT, \"L{lifeInt.Replace("Sub", "")}T{timeInt.Replace("Sub", "")}\");");
+        //CheckCallbacks();
+    }*/
         else if (c(i, "boss_set(") && c(i, ");")) //sets the boss
         {
             D();
@@ -1189,16 +1437,19 @@ void Convert(int stage)
         }
         else if (c(i, "boss_set_life_count(") && c(i, ");")) //boss' stars
         {
-            a(eosdSTG[i]);
+            b(1, $"boss_set_life_count({ex(i, 2)});");
         }
         else if (c(i, "bullet_rank_influence(")) //rank
         {
-            b(1, $"GF0 = {ex(i, 2)};");
-            b(1, $"GF1 = {ex(i, 3)};");
-            b(1, $"GF2 = _f({ex(i, 4)}) + 0.2f;");
-            b(1, $"GF3 = _f({ex(i, 5)}) + 0.2f;");
-            b(1, $"GF4 = _f({ex(i, 6)}) + 0.2f;");
-            b(1, $"GF5 = _f({ex(i, 7)}) + 0.2f;");
+            if (!customRank)
+            {
+                b(1, $"GF0 = {ex(i, 2)};");
+                b(1, $"GF1 = {ex(i, 3)};");
+                b(1, $"GF2 = _f({ex(i, 4)}) + 0.2f;");
+                b(1, $"GF3 = _f({ex(i, 5)}) + 0.2f;");
+                b(1, $"GF4 = _f({ex(i, 6)}) + 0.2f;");
+                b(1, $"GF5 = _f({ex(i, 7)}) + 0.2f;");
+            }
         }
         else if (c(i, "shoot_disable();")) //disables automatic shooting after setting attributes
         {
@@ -1206,7 +1457,7 @@ void Convert(int stage)
         }
         else if (c(i, "shoot_enable();")) //enables automatic shooting after setting attributes or immediately if it was turned off before
         {
-            if (!autoShoot && !c(i + 1, "shoot_interval_delayed"))
+            if (!autoShoot && !c(i + 1, "shoot_interval_delayed") && !usesHardcoded)
             {
                 b(1, "shoot_now(0);");
             }
@@ -1248,15 +1499,19 @@ void Convert(int stage)
         {
             if (argsFind(i) == 9) //used to discard other functions like bullet_cancel, bullet_sounds, etc
             {
-                b(1, $"EI0 = {ex(i, 4)} + _S(GF3);"); //(16 * (_S(GF3) - _S(GF2) ) / 32 + _S(GF2));");
+                //count1:
+                b(1, $"EI0 = {ex(i, 4)} + _S((GF3 / 5.0f) + ((GF3 / 5.0f) * _f(DIFFICULTY)));"); //(16 * (_S(GF3) - _S(GF2) ) / 32 + _S(GF2));");
 
-                b(1, $"EI1 = {ex(i, 5)} + _S(GF5);"); //(16 * (_S(GF5) - _S(GF4) ) / 32 + _S(GF4));");
+                //count2:
+                b(1, $"EI1 = {ex(i, 5)} + _S((GF5 / 5.0f) + ((GF5 / 5.0f) * _f(DIFFICULTY)));"); //(16 * (_S(GF5) - _S(GF4) ) / 32 + _S(GF4));");
 
-                b(1, $"EF0 = {ex(i, 6)} + GF1;"); //(_f(16) * (GF1 - GF0 ) / 32.0f + GF0);");
+                //speed1:
+                b(1, $"EF0 = {ex(i, 6)} + ((GF1 / 5.0f) + ((GF1 / 5.0f) * _f(DIFFICULTY)));"); //(_f(16) * (GF1 - GF0 ) / 32.0f + GF0);");
 
+                //speed2:
+                b(1, $"EF1 = ({ex(i, 7)} + ((GF1 / 5.0f) + ((GF1 / 5.0f) * _f(DIFFICULTY)))) * ({stage} == 2 && !BOSS_ALIVE ? 1.25f : 1.0f);");//((_f(16) * (GF1 - GF0 ) / 32.0f + GF0));");
 
-                b(1, $"EF1 = {ex(i, 7)} + GF1;");//((_f(16) * (GF1 - GF0 ) / 32.0f + GF0));");
-
+                //angles 1 and 2:
                 b(1, $"EF2 = {ex(i, 8)};");
                 b(1, $"EF3 = {ex(i, 9)};");
 
@@ -1278,7 +1533,33 @@ void Convert(int stage)
                 }
                 else if (isFlagPresent(tmpInt, 4)) //(medium)
                 {
-                    b(1, $"bullet_effects_add(0, 0, 1, 1, -1, -1.0f, -1.0f);");
+                    if (f(currentFunction, "ex_ins_call(0, 0);", ref dummyInt)) //perfect freeze
+                    {
+                        if (dummyInt != -1 && dummyInt > i)
+                        {
+                            //b(1, $"bullet_effects_add(0, 0, 26, 15, -1, -1.0f, -1.0f);");
+                            b(1, $"bullet_effects_add(0, 1, 1, 1, -1, -1.0f, -1.0f);");
+                            b(1, $"bullet_effects_add(0, 1, 7, hardcoded1 + hardcoded2 + 12, -1, -1.0f, -1.0f);");
+                            b(1, $"bullet_effects_add(0, 1, 3, 1, -1, -3.0f + (RAND_FLOAT * 1.5f), 0.0f);");
+
+                            b(1, $"bullet_count(0, (EI0 < 1) ? 2 : (EI0 + _S(_f(EI0) * 0.5f)), (EI1 < 1) ? 1 : EI1);");
+                            //b(1, $"bullet_speed(0, (EF0 < 0.3f) ? 0.3f : EF0, 0.4f);");
+                        }
+                        else if (dummyInt < i)
+                        {
+                            b(1, "!EN");
+                            b(1, "if (EI0 % 2 == 1) EI0 += 1;");
+                            b(1, "!HL");
+                            b(1, "if (EI0 % 2 == 0) EI0 += 1;");
+                            b(1, "!*");
+                            b(1, $"bullet_count(0, (EI0 < 1) ? 1 : EI0, (EI1 < 1) ? 1 : EI1);");
+                            b(1, $"bullet_effects_add(0, 1, 7, hardcoded1 + hardcoded2 + 12, -1, -1.0f, -1.0f);");
+                        }
+                    }
+                    else
+                    {
+                        b(1, $"bullet_effects_add(0, 0, 1, 1, -1, -1.0f, -1.0f);");
+                    }
                 }
                 else if (isFlagPresent(tmpInt, 8)) //(large)
                 {
@@ -1296,7 +1577,7 @@ void Convert(int stage)
                 }
                 else if (!alreadySetSound)
                 {
-                    b(1, $"bullet_sound(0, 21, 38);");
+                    b(1, $"bullet_sound(0, 24, 38);");
                 }
 
                 if (!alreadySetEX) //checks if the ex flags attributes variables were initialized
@@ -1345,11 +1626,32 @@ void Convert(int stage)
                     b(1, $"bullet_effects_add(0, 0, 6, EXa, 13, EXr, -1.0f);");
                 }
 
+                if (usesHardcoded) //special bullet effect implementations
+                {
+                    if (f(currentFunction, "ex_ins_call(0, 0);", ref dummyInt)) //perfect freeze
+                    {
+                        if (dummyInt != -1 && dummyInt > i)
+                        {
+                            //b(1, "bullet_effects_add(0, 0, 3, 1, -1, -2.0f, 0.0f);");
+                            b(1, "bullet_effects_add(0, 0, 31, hardcoded1, -1, -1.0f, -1.0f);");
+                            b(1, "bullet_effects_add_ex(0, 0, 4, 0, 1, 5, 0, 3.142f, 0.0f, -1.0f, -1.0f);");
+                            b(1, "bullet_effects_add(0, 0, 9, 6, 15, -1.0f, -1.0f);");
+                            b(1, "bullet_effects_add(0, 0, 4, hardcoded2, 1, 0.0f, 0.01f);");
+                            b(1, "bullet_effects_add(0, 0, 3, 220, -1, 0.01f, 0.0f);");
+                            b(1, "hardcoded1 -= 5;");
+                        }
+                    }
+                }
+
                 if (autoShoot)
                 {
                     b(1, "shoot_now(0);");
                 }
             }
+        }
+        else if (c(i, "bullet_cancel();")) //deletes all bullets and turns them into cancel items
+        {
+            a(eosdSTG[i]);
         }
         else if (c(i, "laser_index(") && c(i, ");")) //sets the laser index to use
         {
@@ -1382,7 +1684,17 @@ void Convert(int stage)
         else if (c(i, "laser_create_aimed(") && c(i, ");")) //creates a laser aimed to the player
         {
             D();
-            CreateLaser(i, "PLAYER_ANGLE");
+            CreateLaser(i, $"PLAYER_ANGLE + {ex(i, 4)}");
+        }
+        else if (c(i, "laser_cancel(") && c(i, ");")) //Clears the specified laser
+        {
+            D();
+            b(1, $"laser_clear({ex(i, 2)});");
+        }
+        else if (c(i, "laser_clear_all();")) //Clears all lasers
+        {
+            D();
+            a(eosdSTG[i]);
         }
         else if (c(i, "spellcard_end();"))//ends a spellcard
         {
@@ -1392,20 +1704,32 @@ void Convert(int stage)
         else if (c(i, "spellcard_start(") && c(i, ");")) //starts a spellcard
         {
             D();
-            b(1, $"spellcard_start({ex(i, 3)}, 6000, 0, {ex(i, 4)});");
+            b(1, $"spellcard_start({ex(i, 3)}, 6000, 0, \"spellcard\");");
             //b(1, "callback_ex(0, -1, 0, \"\");");
             b(1, "enemy_invincible_timer(60);");
             b(1, "SPELL_CAPTURE = 1;");
             b(1, "PLAYER_DEATHS = 0;");
             b(1, "PLAYER_BOMBS_USED = 0;");
             b(1, $"enemy_kill_all_stones();");
-            b(1, "bullet_cancel_radius(640.0f);");
+            b(1, "if (SPELL_TIMEOUT)");
+            b(1, "{");
+            b(2, "bullet_clear_radius(640.0f);");
+            b(1, "}");
+            b(1, "else");
+            b(1, "{");
+            b(2, "bullet_cancel_radius(640.0f);");
+            b(1, "}");
             b(1, "laser_clear_all();");
-            b(1, "if (SELF_LIFE <= 0) enemy_life_set(1750);");
-            b(1, $"enemy_life_set(_S(_f((SELF_LIFE > 501) ? 500 : SELF_LIFE) * 3.5f));"); //damage reduction
-            b(1, "if (SELF_LIFE <= 0) enemy_life_set(1750);");
-            b(1, $"enemy_lifebar_color(0, 999999.0f, 0);");
+            b(1, "if (SELF_LIFE <= 0) enemy_life_set(1950);");
+            b(1, $"enemy_life_set(_S(_f((SELF_LIFE > 501) ? 500 : SELF_LIFE) * 3.75f));");//3.5f));"); //damage reduction
+            b(1, "if (SELF_LIFE <= 0) enemy_life_set(1950);");
+            //if (!customLifeBar) b(1, $"enemy_lifebar_color(0, 999999.0f, 0);");
             BulletRankReset();
+        }
+        else if (c(i, "spellcard_flag_timeout(") && c(i, ");")) //Turns the current spellcard as a timeout one
+        {
+            D();
+            b(1, $"if ({ex(i, 2)} % 2 == 1) spellcard_flag_timeout_set();");
         }
         else if (c(i, "effect_sound(") && c(i, ");")) //sound effects (SFX)
         {
@@ -1421,7 +1745,7 @@ void Convert(int stage)
         CopyAndRename(noWaitFunctions[i]);
     }
 
-
+    //ClearCallbacks();
     //AddCallbacks();
 
     //ChangeVarMaps(); //a few variable adjustments (NOT USED ANYMORE xd)
@@ -1429,6 +1753,43 @@ void Convert(int stage)
     Console.WriteLine("Done!");
     Environment.Exit(0);
 }
+
+
+//unused
+/*
+void ClearCallbacks() //loops through all the implemented functions and clears callbacks if found
+{
+    int tmp3 = 0;
+    for (int i = 0; i < fwSTG.Count; i++)
+    {
+        if (fwSTG[i].Contains("void Sub"))
+        {
+            for (int j = 0; j < callbackClearFunctions.Count; j++)
+            {
+                if (fwSTG[i].Contains(callbackClearFunctions[j] + "("))
+                {
+                    i++;
+                    i++;
+                    tmp3 = fwInsert;
+                    fwInsert = i;
+                    b(1, "if (SPELL_TIMEOUT)");
+                    b(1, "{");
+                    b(2, "GI1 = 0;");
+                    b(2, "GF6 = 0.0f;");
+                    b(1, "}");
+                    b(1, "else if (GI0 > 0 && SELF_LIFE <= GI0)");
+                    b(1, "{");
+                    b(2, "GI0 = -1;");
+                    b(2, "GI2 = 0;");
+                    b(1, "}");
+                    fwInsert = tmp3 + 10;
+                    break;
+                }
+            }
+        }
+    }
+}
+*/
 
 //copies a function ('func'), removes all time labels and adds the word "Instant" to it
 void CopyAndRename(string func)
@@ -1476,10 +1837,19 @@ void Hardcoded(int i) //TODO: Add cirno's "Perfect Freeze" function
     {
         switch (ex(i, 2))
         {
+            case "0": //cirno's perfect freeze (only the anm effect and a variable backup is included here)
+                b(1, $"if ({ex(i, 3)} == 1)");
+                b(1, "{");
+                b(2, "hardcoded1 = hardcoded3;");
+                b(1, "}");
+                b(1, "anm_create_front(1, 89);");
+                break;
+
             case "1": //set a random offset for the bullet shooter
                 b(1, $"EF6 = RAND_FLOAT_SIGNED * _f({ex(i, 3)});");
                 b(1, $"EF7 = RAND_FLOAT_SIGNED * _f({ex(i, 3)});");
                 b(1, $"shoot_offset(0, EF6, EF7);");
+                b(1, "shoot_now(0);");
                 break;
         }
     }
@@ -1576,7 +1946,7 @@ void ScanLasers() //looks for lasers' creation and rotation uses
         if (c(i, "sub Sub")) //finds a function
         {
             currentReading = ex(i, 2).Replace("()", "").Replace(" ", "");
-            Console.WriteLine($"Parsing function [{currentReading}] looking for lasers");
+            if (LASER_DEBUG) Console.WriteLine($"Parsing function [{currentReading}] looking for lasers");
         }
 
         if (c(i, "laser_create") && !possibleFuncs.Contains(currentReading))
@@ -1594,7 +1964,7 @@ void ScanLasers() //looks for lasers' creation and rotation uses
 
         if (c(i, "laser_rotate(") && possibleFuncs.Contains(currentReading) && !laserFunctions.Contains(currentReading))
         {
-            Console.WriteLine($"Function [{currentReading}] uses Lasers and Rotation!");
+            if (LASER_DEBUG) Console.WriteLine($"Function [{currentReading}] uses Lasers and Rotation!");
             laserFunctions.Add(currentReading);
         }
     }
@@ -1671,14 +2041,14 @@ void ScanBossEnd() //checks every function
 
     for (int i = 0; i < FuncsFound.Count; i++)
     {
-        Console.WriteLine($"Scanning function [{FuncsFound[i]}] for Boss-End instructions");
+        if (BOSSEND_DEBUG) Console.WriteLine($"Scanning function [{FuncsFound[i]}] for Boss-End instructions");
         if (f(FuncsFound[i], "death_callback_sub", ref dummy))
         {
             currentReading = ex(dummy, 2).Replace("\"", "");
-            Console.WriteLine($"Function [{currentReading}] may have Boss-End instructions");
-            if (f(currentReading, "enemy_delete", ref dummy) && f(currentReading, "timer_callback_sub", ref dummy) && (f(currentReading, "effect_particle(3, 2, #ffffffff);", ref dummy) || f(currentReading, "spellcard_end();", ref dummy)))
+            if (BOSSEND_DEBUG) Console.WriteLine($"Function [{currentReading}] may have Boss-End instructions");
+            if (f(currentReading, "enemy_delete", ref dummy) && !f(currentReading, "timer_callback_sub", ref dummy) && (f(currentReading, "effect_particle(3, 2, #ffffffff);", ref dummy) || f(currentReading, "spellcard_end();", ref dummy)))
             {
-                Console.WriteLine($"Detected Boss-End Function: {currentReading}");
+                if (BOSSEND_DEBUG) Console.WriteLine($"Detected Boss-End Function: {currentReading}");
                 if (!bossEndFunctions.Contains(currentReading)) bossEndFunctions.Add(currentReading);
             }
         }
@@ -1686,10 +2056,10 @@ void ScanBossEnd() //checks every function
         if (f(FuncsFound[i], "timer_callback_sub", ref dummy))
         {
             currentReading = ex(dummy, 2).Replace("\"", "");
-            Console.WriteLine($"Function [{currentReading}] may have Boss-End instructions");
-            if (f(currentReading, "enemy_delete", ref dummy) && (f(currentReading, "effect_particle(3, 2, #ffffffff);", ref dummy) || f(currentReading, "spellcard_end();", ref dummy)))
+            if (BOSSEND_DEBUG) Console.WriteLine($"Function [{currentReading}] may have Boss-End instructions");
+            if (f(currentReading, "enemy_delete", ref dummy) && !f(currentReading, "timer_callback_sub", ref dummy) && (f(currentReading, "effect_particle(3, 2, #ffffffff);", ref dummy) || f(currentReading, "spellcard_end();", ref dummy)))
             {
-                Console.WriteLine($"Detected Boss-End Function: {currentReading}");
+                if (BOSSEND_DEBUG) Console.WriteLine($"Detected Boss-End Function: {currentReading}");
                 if (!bossEndFunctions.Contains(currentReading)) bossEndFunctions.Add(currentReading);
             }
         }
@@ -1751,7 +2121,7 @@ void ScanEnemyFuncs() //checks for every function that is used when spawning an 
             {
                 if (c(i, FuncsFound[j]) && !enemyFunctions.Contains(FuncsFound[j]))
                 {
-                    Console.WriteLine($"Found function that needs register workaround: {FuncsFound[j]}");
+                    if (REGISTER_DEBUG) Console.WriteLine($"Found function that needs register workaround: {FuncsFound[j]}");
                     enemyFunctions.Add(FuncsFound[j]);
                     break;
                 }
@@ -1767,7 +2137,7 @@ bool f(string func, string s, ref int line) //Looks on function 'func' for strin
     {
         if (c(i, "sub ") && e(i, "()") && functionLine == 0) //start of a function
         {
-            Console.WriteLine($"FIND: Function [{ex(i, 2).Replace("()", "")}] against [{func}]");
+            if (FIND_DEBUG) Console.WriteLine($"FIND: Function [{ex(i, 2).Replace("()", "")}] against [{func}]");
             if (ex(i, 2).Replace("()", "") == func)
             {
                 functionLine = i;
@@ -1833,12 +2203,37 @@ string GetItem(string s) //Converts EoSD items into FW's and manages some random
 {
     switch (s)
     {
-        case "-1" or "0": //random between point and power items
+        case "-2": //nothing
+            return "0";
+            break;
+
+        case "-1": //random between point and power items
             return "(RAND_INT % 2)";
             break;
 
-        case "-2":
-            return "0";
+        case "0": //power
+        case "2": //big power (doesn't really matter since big power in FW is kinda too much)
+            return "1";
+            break;
+
+        case "1": //point
+            return "2";
+            break;
+
+        case "3": //bomb
+            return "7";
+            break;
+
+        case "4": //Full Power
+            return "8";
+            break;
+
+        case "5": //Life
+            return "5";
+            break;
+
+        case "6": //Stone fragments (Originally it was cancel items but there isn't such ID in th20)
+            return "13";
             break;
     }
     return s;
@@ -1861,28 +2256,89 @@ string ConvertSFX(string sfx)
 {
     switch (sfx)
     {
+
+
         case "6": //evil sealing circle
             return "29";
             break;
 
+        case "7": //bullet shoot (short) //unsed
+            /*return "24";
+            break;*/
 
         case "8": //bullet shoot (medium)
-            return "22";
+            return "25";
             break;
 
         case "9": //bullet shoot (low)
-            return "23";
+            return "26";
+            break;
+
+        case "10":
+
+            break;
+
+        case "11":
+
+            break;
+
+        case "12":
+
+            break;
+
+        case "13":
+
+            break;
+
+        case "14":
+
+            break;
+
+        case "15":
+
             break;
 
         case "16": //lasers
             return "18";
             break;
 
-            /*case "18": //boss defeated
-                return "5";
-                break;*/
+        case "17":
+
+            break;
+
+        /*case "18": //boss defeated. [UNUSED, since it makes defeating bosses weird]
+            return "5";
+            break;*/
+
+        case "19":
+
+            break;
+
+        case "20":
+
+            break;
+
+        case "21":
+
+            break;
+
+        case "22":
+
+            break;
+
+        case "23":
+
+            break;
+
+        case "24":
+
+            break;
+
+        case "25":
+
+            break;
     }
-    return "21"; //bullet default (and ID 7)
+    return "25"; //bullet default
 }
 
 void CreateLaser(int i, string angle)
@@ -2152,7 +2608,7 @@ string exOg(int line, ref int n, bool find) //removes spaces and extracts string
                     }
                     if (n <= 0 && !find)
                     {
-                        return builder;
+                        return exReplaceHelper(builder);
                     }
                     builder = "";
                 }
@@ -2184,7 +2640,7 @@ string exOg(int line, ref int n, bool find) //removes spaces and extracts string
 
                     if (n <= 0 && !find)
                     {
-                        return builder;
+                        return exReplaceHelper(builder);
                     }
                     builder = "";
                 }
@@ -2206,6 +2662,11 @@ string exOg(int line, ref int n, bool find) //removes spaces and extracts string
 
     }
     return builder;
+}
+
+string exReplaceHelper(string s) //used to replace arguments with FW equivalents when grabbing them
+{
+    return s.Replace("SELF_TIME", "PHASE_TIMER");
 }
 
 bool e(int l, string d) //checks if a line 'l' ends with 'd'
@@ -2263,6 +2724,105 @@ void D([CallerLineNumber] int line = 0) //DEBUG. prints the line of the last fun
     }
 }
 
+/*
+int HasSubEntry(string name)
+{
+    for (int i = 0; i < Subs.Count; i++)
+    {
+        Console.WriteLine($"Looking for entry [Sub {name}]");
+        Console.WriteLine($"Currently at entry [Sub{Subs[i].Sub}]");
+        if ($"Sub{Subs[i].Sub}" == name)
+        {
+            Console.WriteLine("Found!");
+            return i;
+        }
+    }
+    Console.WriteLine("NOT Found!");
+    return -1;
+}*/
+
+void ReadSubEntries(int stage)
+{
+    bool onEntry = false;
+    int currentEntryStage = 0;
+    string sub = "";
+    for (int i = 0; i < SubsFile.Length; i++)
+    {
+        try
+        {
+            if (SubsFile[i].StartsWith("[STG") && SubsFile[i].EndsWith("]")) //Stage
+            {
+                currentEntryStage = int.Parse(SubsFile[i].Replace("[STG", "").Replace("]", ""));
+            }
+
+            if (currentEntryStage == stage)
+            {
+                if (SubsFile[i].Contains("[Sub") && SubsFile[i].Contains("]") && !onEntry) //On Entry
+                {
+                    /*if (onEntry)
+                    {
+                        Console.WriteLine($"Added entry with [Sub{tmpEntry.Sub}]");
+                        Subs.Add(tmpEntry);
+                    }*/
+                    onEntry = true;
+                    sub = SubsFile[i].Replace("[", "").Replace("]", "");
+                    if (!SubParams.ContainsKey(sub)) SubParams.Add(sub, new List<string>());
+                }
+                else if (SubsFile[i].Contains("[End]") && onEntry)
+                {
+                    onEntry = false;
+                }
+                else if (onEntry && !SubsFile[i].StartsWith("//"))
+                {
+                    if (SubsFile[i].Contains("//"))
+                    {
+                        SubParams[sub].Add(SubsFile[i].Substring(0, SubsFile[i].IndexOf("//")));
+                    }
+                    else
+                    {
+                        SubParams[sub].Add(SubsFile[i]);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error while parsing Sub-Params file at Line {i + 1}.");
+            Console.WriteLine($"        {ex.ToString()}");
+            Environment.Exit(-1);
+        }
+    }
+    /*
+        if (onEntry && !Subs.Contains(tmpEntry))
+        {
+            Console.WriteLine($"Added entry with [Sub{tmpEntry.Sub}]");
+            Subs.Add(tmpEntry);
+        }*/
+}
+
+//Converts the OnTime/OnLife Aliases to their SubX versions (UNUSED!)
+/*string FindEntry(string alias)
+{
+    for (int i = 0; i < Subs.Count; i++)
+    {
+        if (Subs[i].Alias == alias) return $"Sub{Subs[i].Sub}";
+    }
+    return ""; //Empty if not found
+}*/
+/*
+string ExtractSubEntry(int i) //i = line
+{
+    temp = SubsFile[i].Substring(SubsFile[i].IndexOf("\"") + 1);
+    return temp.Substring(0, temp.Length - 1);
+}
+
+void ApplyEntryCallback()
+{
+    b(1, $"callback_ex(0, {Subs[CurrentSubEntry].LifeAmt}, {Subs[CurrentSubEntry].TimeAmt}, \"{Subs[CurrentSubEntry].OnLife}\");");
+    if (Subs[CurrentSubEntry].OnTime != "") b(1, $"timer_callback_sub(0, \"{Subs[CurrentSubEntry].OnTime}\");");
+
+}
+*/
 
 
 

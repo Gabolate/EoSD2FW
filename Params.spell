@@ -1,0 +1,173 @@
+Author="Gabolate"
+Time="07-07-2026"
+Description="General Sub-Params for EoSD2FW"
+Version=0.1
+EoSD2FW_Version=0.2
+
+[STG1]
+
+//Rumia MidBoxss
+[Sub8]
+enemy_life_set(10500);
+callback_ex(1, 0, 1440, "Sub6");
+timer_callback_sub(1, "Sub7");
+!HL
+callback_ex(0, 500, 0, "Sub9");
+enemy_lifebar_color(1, 500.0f, -24448);
+!*
+[End]
+
+//Rumia Midboss defeated
+[Sub6]
+callback_ex(0, -1, 0, "");
+callback_ex(1, -1, 0, "");
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+[End]
+
+//Rumia Midboss escape
+[Sub7]
+callback_ex(0, -1, 0, "");
+callback_ex(1, -1, 0, "");
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+[End]
+
+//Moonlight Ray
+[Sub9]
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+callback_ex(0, 0, 1320, "Sub6");
+[End]
+
+//Rumia Non1
+[Sub11]
+enemy_life_set(12250);
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+callback_ex(1, 0, 2100, "Sub16"); //Non2
+timer_callback_sub(1, "Sub22"); //NightBird
+!NHL
+callback_ex(0, 0, 2100, "Sub22"); //NightBird
+!*
+[End]
+
+//NightBird
+[Sub22]
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+callback_ex(1, -1, 0, "");
+callback_ex(0, 0, 1500, "Sub16"); //Non2
+[End]
+
+//Rumia Non2 (Lasers)
+[Sub16]
+enemy_life_set(13125);
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+callback_ex(1, 0, 1500, "Sub17"); //Boss defeated
+callback_ex(0, 800, 1800, "Sub23"); //Demarcation
+enemy_lifebar_color(0, 800.0f, -24448);
+[End]
+
+//Demarcation
+[Sub23]
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+[End]
+
+
+[STG2]
+
+//Daiyousei
+[Sub20]
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+enemy_life_set(21000);
+callback_ex(0, 0, 1920, "Sub18"); //Daiyousei defeated
+timer_callback_sub(0, "Sub19"); //Daiyousei leave
+[End]
+
+//Daiyousei defeated
+[Sub18]
+effect_screen_shake(30, 12, 0);
+effect_sound(5);
+bullet_cancel_radius(640.0f);
+enemy_kill_all();
+@SpellEnd();
+[End]
+
+//Daiyousei leave
+[Sub19]
+callback_ex(0, -1, 0, "");
+bullet_clear_radius(640.0f);
+[End]
+
+//Cirno
+[Sub22]
+enemy_life_set(14750);
+enemy_lifebar_color(1, 0.0f, -24448);
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(0, 1500.0f, -24448);
+!EN: callback_ex(0, 1500, 1500, "Sub29");
+!HL: callback_ex(0, 1500, 1500, "Sub30");
+[End]
+
+//Icicle Fall
+[Sub29]
+callback_ex(0, 0, 1800, "Sub25");
+enemy_lifebar_color(1, 0.0f, -24448);
+enemy_lifebar_color(0, 0.0f, -24448);
+[End]
+
+//Hailstorm
+[Sub30]
+callback_ex(0, 0, 2100, "Sub25");
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+[End]
+
+//Cirno Non2 (Lasers)
+[Sub25]
+callback_ex(1, -1, 0, "");
+enemy_lifebar_color(1, 0.0f, -24448);
+!E
+callback_ex(0, 1400, 3000, "Sub31"); //Perfect Freeze
+enemy_lifebar_color(0, 1400.0f, -24448);
+!NHL
+callback_ex(0, 3200, 3000, "Sub31"); //Perfect Freeze
+enemy_lifebar_color(0, 3200.0f, -24448);
+!*
+[End]
+
+//Perfect Freeze
+[Sub31]
+callback_ex(1, -1, 0, "");
+enemy_life_set(25750);
+
+enemy_lifebar_color(1, 0.0f, -24448);
+!E callback_ex(0, 0, 2400, "Sub28"); //Cirno defeat
+!NHL callback_ex(0, 0, 2400, "Sub32"); //Diamond Blizzard
+enemy_lifebar_color(0, 0.0f, -24448);
+!*
+hardcoded1 = 210; //Time before using the hardcoded function to freeze bullets
+hardcoded2 = 240; //Time before using the hardcoded function for the second time to make bullets move
+hardcoded3 = hardcoded1; //Just a backup
+[End]
+
+//Diamond Blizzard
+[Sub32]
+enemy_life_set(1950);
+enemy_lifebar_color(1, 0.0f, -24448);
+enemy_lifebar_color(0, 0.0f, -24448);
+callback_ex(1, -1, 0, "");
+callback_ex(0, 0, 1980, "Sub28"); //Cirno defeat
+enemy_invincible_timer(90);
+//enemy_life_set(4900);
+[End]
+
+//Cirno defeat
+[Sub28]
+callback_ex(0, -1, 0, "");
+callback_ex(1, -1, 0, "");
+[End]
