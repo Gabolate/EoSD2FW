@@ -29,16 +29,30 @@ Open a terminal window (or cmd) and type this while being on the project's folde
 
 # How to use
 
-- Copy all of EoSD's "ecldata" files into the binary's directory
+- Copy all of EoSD's "ecldataX.txt" decompiled files into the binary's directory
 
 - Create a folder called ``modded`` along the converter's binary
 
 - Open EoSD2FW
 
-- Type the stage number (1 - 7. 7 is for the extra stage) then enter
+- Type the name of the [Sub-Params](https://github.com/Gabolate/EoSD2FW/blob/main/Params.spell) file (The default one available since v0.2 on the releases tab is "Params.spell")
+
+- Type the stage number 1 - 7 (7 is for the extra stage) then [ENTER]
 
 - You should get a .txt file on the "modded" folder, that's the converted script.
 
 - To pack it to use it on FW you need to use [thtk](https://thcrap.thpatch.net/thtk-nightly/thtk-win32-x64.zip) with [zero318's ECLMap](https://github.com/zero318/TouhouMaps/blob/main/th20_thtk.eclm)
 
 - Use it like any other mod (oh gosh, i can't make a full guide on this rn sorry  :'v)
+
+# Credits
+
+- [@zero318](https://github.com/zero318) Bullet transform 0x1 fix Binhack, ECLMap + General Help
+- [@Neo-Nickz](https://github.com/Neo-Nickz)      General Help
+- [@DarkCatyYT](https://www.youtube.com/@DarkCatyYT)    General Help
+- [@Priw8](https://github.com/Priw8)         Website with various ECL tutorials and resources
+- [@ExpHP](https://github.com/ExpHP)         Website with ANM scripts documentation
+- [@ManDude](https://github.com/ManDude/)        EoSD ECL documentation
+- [THWiki.cc](https://thwiki.cc/%E8%84%9A%E6%9C%AC%E5%AF%B9%E7%85%A7%E8%A1%A8/ECL/%E7%AC%AC%E5%9B%9B%E4%B8%96%E4%BB%A3)      4th Gen ECL documentation
+- [@GensokyoClub](https://github.com/GensokyoClub) EoSD Decompile for Reference
+- [THPatch](https://www.thpatch.net)        Original EoSD's English and Spanish Game Translations
