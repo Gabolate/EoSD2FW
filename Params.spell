@@ -6,14 +6,15 @@ EoSD2FW_Version=0.2
 
 [STG1]
 
-//Rumia MidBoxss
+
+//Rumia MidBoss
 [Sub8]
-enemy_life_set(10500);
+enemy_life_set(8500);
 callback_ex(1, 0, 1440, "Sub6");
 timer_callback_sub(1, "Sub7");
 !HL
-callback_ex(0, 500, 0, "Sub9");
-enemy_lifebar_color(1, 500.0f, -24448);
+callback_ex(0, 0, 0, "Sub9");
+enemy_lifebar_color(1, 0.0f, -24448);
 !*
 [End]
 
@@ -42,7 +43,7 @@ callback_ex(0, 0, 1320, "Sub6");
 
 //Rumia Non1
 [Sub11]
-enemy_life_set(12250);
+enemy_life_set(9500);
 enemy_lifebar_color(0, 0.0f, -24448);
 enemy_lifebar_color(1, 0.0f, -24448);
 callback_ex(1, 0, 2100, "Sub16"); //Non2
@@ -65,7 +66,7 @@ callback_ex(0, 0, 1500, "Sub16"); //Non2
 enemy_life_set(13125);
 enemy_lifebar_color(0, 0.0f, -24448);
 enemy_lifebar_color(1, 0.0f, -24448);
-callback_ex(1, 0, 1500, "Sub17"); //Boss defeated
+callback_ex(1, 0, 3900, "Sub17"); //Boss defeated
 callback_ex(0, 800, 1800, "Sub23"); //Demarcation
 enemy_lifebar_color(0, 800.0f, -24448);
 [End]
@@ -83,8 +84,8 @@ enemy_lifebar_color(1, 0.0f, -24448);
 [Sub20]
 enemy_lifebar_color(0, 0.0f, -24448);
 enemy_lifebar_color(1, 0.0f, -24448);
-enemy_life_set(21000);
-callback_ex(0, 0, 1920, "Sub18"); //Daiyousei defeated
+enemy_life_set(20500);
+callback_ex(0, 0, 2220, "Sub18"); //Daiyousei defeated
 timer_callback_sub(0, "Sub19"); //Daiyousei leave
 [End]
 
@@ -109,19 +110,20 @@ enemy_life_set(14750);
 enemy_lifebar_color(1, 0.0f, -24448);
 enemy_lifebar_color(0, 0.0f, -24448);
 enemy_lifebar_color(0, 1500.0f, -24448);
-!EN: callback_ex(0, 1500, 1500, "Sub29");
-!HL: callback_ex(0, 1500, 1500, "Sub30");
+!EN: callback_ex(0, 1500, 2400, "Sub29");
+!HL: callback_ex(0, 1500, 2400, "Sub30");
 [End]
 
 //Icicle Fall
 [Sub29]
-callback_ex(0, 0, 1800, "Sub25");
+callback_ex(0, 0, 2100, "Sub25");
 enemy_lifebar_color(1, 0.0f, -24448);
 enemy_lifebar_color(0, 0.0f, -24448);
 [End]
 
 //Hailstorm
 [Sub30]
+enemy_life_set(3750);
 callback_ex(0, 0, 2100, "Sub25");
 enemy_lifebar_color(0, 0.0f, -24448);
 enemy_lifebar_color(1, 0.0f, -24448);
@@ -129,26 +131,22 @@ enemy_lifebar_color(1, 0.0f, -24448);
 
 //Cirno Non2 (Lasers)
 [Sub25]
+enemy_life_set(19250);
 callback_ex(1, -1, 0, "");
 enemy_lifebar_color(1, 0.0f, -24448);
-!E
-callback_ex(0, 1400, 3000, "Sub31"); //Perfect Freeze
-enemy_lifebar_color(0, 1400.0f, -24448);
-!NHL
-callback_ex(0, 3200, 3000, "Sub31"); //Perfect Freeze
-enemy_lifebar_color(0, 3200.0f, -24448);
-!*
+callback_ex(0, 0, 3000, "Sub31"); //Perfect Freeze
+enemy_lifebar_color(0, 0.0f, -24448);
 [End]
 
 //Perfect Freeze
 [Sub31]
 callback_ex(1, -1, 0, "");
-enemy_life_set(25750);
+enemy_life_set(2750);
 
 enemy_lifebar_color(1, 0.0f, -24448);
+enemy_lifebar_color(0, 0.0f, -24448);
 !E callback_ex(0, 0, 2400, "Sub28"); //Cirno defeat
 !NHL callback_ex(0, 0, 2400, "Sub32"); //Diamond Blizzard
-enemy_lifebar_color(0, 0.0f, -24448);
 !*
 hardcoded1 = 210; //Time before using the hardcoded function to freeze bullets
 hardcoded2 = 240; //Time before using the hardcoded function for the second time to make bullets move
@@ -157,7 +155,7 @@ hardcoded3 = hardcoded1; //Just a backup
 
 //Diamond Blizzard
 [Sub32]
-enemy_life_set(1950);
+enemy_life_set(2250);
 enemy_lifebar_color(1, 0.0f, -24448);
 enemy_lifebar_color(0, 0.0f, -24448);
 callback_ex(1, -1, 0, "");
@@ -171,3 +169,177 @@ enemy_invincible_timer(90);
 callback_ex(0, -1, 0, "");
 callback_ex(1, -1, 0, "");
 [End]
+
+
+[STG3]
+
+
+//Temporal until I implement the MSGs
+[SkipMDialog]
+
+//Debug:
+[B/*ossDebug*/]
+
+//Meiling Midboss
+[Sub9]
+!EN callback_ex(0, 0, 1800, "Sub13"); //Flower
+!HL callback_ex(0, 0, 1800, "Sub14"); //Selaginella 9
+timer_callback_sub(0, "Sub16"); //Meiling leaves
+enemy_lifebar_color(0, 0.0f, -24448);
+!*
+//Anm stuff here since the converter can't detect it for Meiling's case:
+anm_source(1);
+anm_set_slot(1, 99);
+anm_source(3);
+anm_set_slot_main(0, 0);
+enemy_fog_spawn(128.0f, 6934423);
+[End]
+
+//Flower
+[Sub13]
+callback_ex(0, 0, 1200, "Sub15"); //Meiling Midboss defeated
+timer_callback_sub(0, "Sub16"); //Meiling leaves
+[End]
+
+//Selaginella 9
+[Sub14]
+callback_ex(0, 0, 1200, "Sub15"); //Meiling Midboss defeated
+timer_callback_sub(0, "Sub16"); //Meiling leaves
+[End]
+
+//Meiling Midboss defeated
+[Sub15]
+callback_ex(0, -1, 0, "");
+callback_ex(1, -1, 0, "");
+enemy_flags_clear(4);
+enemy_flags_clear(8);
+[End]
+
+//Meiling leaves
+[Sub16]
+callback_ex(0, -1, 0, "");
+callback_ex(1, -1, 0, "");
+enemy_flags_clear(4);
+enemy_flags_clear(8);
+[End]
+
+//Meiling Boss Spawn
+[Sub17]
+phase_timer_clear();
+callback_ex(1, -1, 0, "");
+callback_ex(0, -1, 0, "");
+enemy_life_set(1000);
+enemy_flags_set(4);
+enemy_flags_set(8);
+enemy_flags_set(128);
+//Anm stuff here since the converter can't detect it for Meiling's case:
+anm_source(1);
+anm_set_slot(1, 99);
+anm_source(3);
+anm_set_slot_main(0, 0);
+enemy_fog_spawn(128.0f, 6934423);
+boss_set(0);
+enemy_flags_set(128);
+enemy_flags_set(4);
+enemy_flags_set(8);
+enemy_kill_all_stones();
+enemy_kill_all();
+enemy_flags_set(128);
+GI3 = 123;
+msg_wait();
+[End]
+
+//Meiling (Non1)
+[Sub18]
+msg_wait();
+msg_wait();
+ecl_time_sub(60); //for some reason ig its required xd
+msg_wait();
+callback_ex(0, 0, 3000, "Sub29"); //Rainbow Wind Chime
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_life_set(14000);
+[End]
+
+//Rainbow Wind Chime
+[Sub29]
+enemy_life_set(2750);
+callback_ex(0, 0, 3000, "Sub20"); //Meiling Nonspell 2 (random shooting)
+enemy_lifebar_color(0, 0.0f, -24448);
+[End]
+
+//Meiling Nonspell2 (random shooting)
+[Sub20]
+!EN
+callback_ex(0, 0, 0, "Sub26"); //Meiling Nonspell 3 (red and blue kunai + random crap)
+!HL
+callback_ex(0, 0, 2400, "Sub30"); //Yumekazura
+enemy_lifebar_color(0, 0.0f, -24448);
+enemy_lifebar_color(1, 0.0f, -24448);
+!*
+[End]
+
+
+//Yumekazura
+[Sub30]
+enemy_life_set(2250);
+callback_ex(0, 0, 2400, "Sub26"); //Meiling Nonspell 3 (red and blue kunai + random crap)
+enemy_lifebar_color(0, 0.0f, -24448);
+[End]
+
+
+//Meiling Nonspell 3 (red and blue kunai + random crap)
+[Sub26]
+enemy_life_set(28875);
+callback_ex(1, -1, 0, "");
+callback_ex(0, -1, 0, "");
+phase_timer_clear();
+!EN
+callback_ex(0, 500, 2400, "Sub31"); //Colorful Rain
+enemy_lifebar_color(0, 500.0f, -24448);
+!HL
+callback_ex(0, 500, 2400, "Sub32"); //Vivid Chaotic Dance
+enemy_lifebar_color(0, 500.0f, -24448);
+!*
+[End]
+
+//Colorful Rain
+[Sub31]
+callback_ex(1, -1, 0, "");
+enemy_life_set(2500);
+!*
+phase_timer_clear();
+!E
+callback_ex(0, 0, 2160, "Sub34"); //Meiling defeated
+enemy_lifebar_color(0, 0.0f, -24448);
+!N
+callback_ex(0, 0, 2160, "Sub33"); //Random crap
+enemy_lifebar_color(0, 0.0f, -24448);
+!*
+[End]
+
+//Vivid Chaotic Dance
+[Sub32]
+callback_ex(1, -1, 0, "");
+enemy_life_set(2500);
+!*
+phase_timer_clear();
+callback_ex(0, 0, 2160, "Sub33"); //Random crap
+enemy_lifebar_color(0, 0.0f, -24448);
+[End]
+
+//Random crap
+[Sub33]
+enemy_life_set(2500);
+enemy_invincible_timer(120);
+phase_timer_clear();
+callback_ex(0, 0, 2160, "Sub34"); //Meiling defeated
+enemy_lifebar_color(0, 0.0f, -24448);
+[End]
+
+//Meiling defeated
+[Sub34]
+enemy_lifebar_color(0, 0.0f, -24448);
+callback_ex(0, -1, 0, "");
+callback_ex(1, -1, 0, "");
+[End]
+

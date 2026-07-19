@@ -1,4 +1,4 @@
-﻿//EoSD2FW v0.2 [Gabolate 2026. Apache 2.0 License]
+﻿//EoSD2FW v0.3 [Gabolate 2026. Apache 2.0 License]
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -86,6 +86,8 @@ Dictionary<string, string> insNumbers = new Dictionary<string, string>()
 
 string temp = "";
 
+string bulletS = ""; //bullet sound
+
 bool exitInsideLoop = false; //used to exit certain loops
 
 int currentBoss = 0; //0 = midboss, 1 = boss
@@ -116,6 +118,10 @@ bool autoShoot = true; //tells if it should automatically shoot bullets after se
 
 bool outsideTimeline = true; //when 'true' it inserts lines instead of adding them. used to fill data between the start of the script and the timeline
 
+int usedEx = -1; //used to tell which hardcoded instruction exists in that function
+
+bool timelineBossDebug = false; //used by SubParams to make the timeline skip all functions except the boss-related ones.
+
 Principal();
 
 
@@ -140,8 +146,7 @@ void Principal()
         {
             if (stg > 0 && stg <= 7)
             {
-                ReadSubEntries((int)stg);
-                Convert((int)stg);
+                Convert((int)stg, ReadSubEntries((int)stg));
             }
             /*
             switch (stg)
@@ -195,7 +200,7 @@ void Principal()
 }*/
 
 //stages 1-7 (7 for extra stage)
-void Convert(int stage)
+void Convert(int stage, bool skipDialog)
 {
     eosdSTG = File.ReadAllLines($"ecldata{stage}.txt");
     fwSTG.Clear();
@@ -215,7 +220,7 @@ void Convert(int stage)
     a("MainLoop:");
     //b(1, "ecl_time_sub((RAND_INT % delay) + (delay / 5));");
     //b(1, "ecl_time_sub(delay / 5);");
-    b(1, "ecl_time_sub((BOSS_ALIVE ? (RAND_INT % (delay / 2)) + (delay / 2) : (RAND_INT % delay / 5)));");
+    b(1, "ecl_time_sub((BOSS_ALIVE ? (RAND_INT % (delay / 2)) + (delay / 2) : ((RAND_INT % delay / 5) + (delay / 5 * (5 - DIFFICULTY))) / 2));");
     b(1, "shoot_now(0);");
     b(1, "goto MainLoop;");
     a("}");
@@ -464,54 +469,60 @@ void Convert(int stage)
     b(1, "GF5 = 0.2f;");
     //b(1, "enemy_create_abs(\"RankSimulator\", 0.0f, 0.0f, 999999, 0, 0);");
 
+    dummyInt = skipDialog ? 1 : 0;
     //Converts EoSD's timeline into a "main" enemy for FW
     for (int i = timelinePos; i < eosdSTG.Length; i++)
     {
-        //Time label
 
-
-
-        if (eosdSTG[i].Contains("+") && eosdSTG[i].Contains(": //"))
+        if (!timelineBossDebug)
         {
-            a(eosdSTG[i]);
-        }
-        else if (c(i, "ins_0(") && c(i, ");")) //Spawn enemy at absolute position
-        {
-            TimelineBossCheck(stage);
-            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
-        }
-        else if (c(i, "ins_2(") && c(i, ");")) //Spawn Mirrored enemy at absolute position
-        {
-            TimelineBossCheck(stage);
-            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs_mirror({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
-        }
-        else if (c(i, "ins_4(") && c(i, ");")) //Spawn enemy at random position
-        {
-            TimelineBossCheck(stage);
-            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs({ex(i, 2) /*Function*/}, RAND_FLOAT_SIGNED * 192.0f, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
-        }
-        else if (c(i, "ins_6(") && c(i, ");")) //Spawn Mirrored enemy at random position
-        {
-            TimelineBossCheck(stage);
-            b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs_mirror({ex(i, 2) /*Function*/}, RAND_FLOAT_SIGNED * 192.0f, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
-        }
-        else if (c(i, "ins_8(") && c(i, ");")) //Shows dialog
-        {
-            b(1, $"msg_read({ex(i, 2)});");
-        }
-        else if (c(i, "ins_9(") && c(i, ");")) //Waits for a dialog pause
-        {
-            b(1, $"msg_wait();");
-        }
-        else if (c(i, "ins_12(") && c(i, ");")) //Waits until there are no bosses
-        {
-            b(1, $"boss_wait();");
-        }
-        else if (s(i, "}")) //End of timeline
-        {
-            b(1, "chapter_set(81);");
-            a("}");
-            break;
+            //Time label
+            if (eosdSTG[i].Contains("+") && eosdSTG[i].Contains(": //"))
+            {
+                a(eosdSTG[i]);
+            }
+            else if (c(i, "ins_0(") && c(i, ");")) //Spawn enemy at absolute position
+            {
+                TimelineBossCheck(stage);
+                b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
+            }
+            else if (c(i, "ins_2(") && c(i, ");")) //Spawn Mirrored enemy at absolute position
+            {
+                TimelineBossCheck(stage);
+                b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs_mirror({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
+            }
+            else if (c(i, "ins_4(") && c(i, ");")) //Spawn enemy at random position
+            {
+                TimelineBossCheck(stage);
+                b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs({ex(i, 2) /*Function*/}, RAND_FLOAT_SIGNED * 192.0f, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
+            }
+            else if (c(i, "ins_6(") && c(i, ");")) //Spawn Mirrored enemy at random position
+            {
+                TimelineBossCheck(stage);
+                b(1, $"if (!BOSS_ALIVE || GI3 != 123) enemy_create_abs_mirror({ex(i, 2) /*Function*/}, RAND_FLOAT_SIGNED * 192.0f, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
+            }
+            else if (c(i, "ins_8(") && c(i, ");")) //Shows dialog
+            {
+                if (!skipDialog)
+                {
+                    b(1, $"msg_read({ex(i, 2)});");
+                }
+                skipDialog = false;
+            }
+            else if (c(i, "ins_9(") && c(i, ");")) //Waits for a dialog pause
+            {
+                b(1, $"msg_wait();");
+            }
+            else if (c(i, "ins_12(") && c(i, ");")) //Waits until there are no bosses
+            {
+                b(1, $"boss_wait();");
+            }
+            else if (s(i, "}")) //End of timeline
+            {
+                b(1, "chapter_set(81);");
+                a("}");
+                break;
+            }
         }
     }
 
@@ -523,6 +534,66 @@ void Convert(int stage)
     ScanBossEnd();
 
     ScanLasers();
+
+    if (timelineBossDebug) //jump only to midbosses and final bosses in the timeline
+    {
+        outsideTimeline = false;
+        tmpInt = 0;
+        b(1, "goto MidBoss;");
+        for (int i = timelinePos; i < eosdSTG.Length; i++)
+        {
+            //Time label
+            if (eosdSTG[i].Contains("+") && eosdSTG[i].Contains(": //"))
+            {
+                a(eosdSTG[i]);
+            }
+            else if (c(i, "ins_0(") && c(i, ");")) //Spawn enemy at absolute position
+            {
+                if (f(ex(i, 2).Replace("\"", ""), "boss_set", ref dummyInt) || f(ex(i, 2).Replace("\"", ""), "enemy_interrupt_set", ref dummyInt))
+                {
+                    if (tmpInt == 0)
+                    {
+                        a("MidBoss:");
+                    }
+                    else if (tmpInt == 1)
+                    {
+                        a("FinalBoss:");
+                    }
+                    b(1, "@BossCheck();");
+                    b(1, "ecl_time_sub(120);");
+                    b(1, $"enemy_create_abs({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, _S(_f({ex(i, 6) /*Life*/}) * 1.75f) + 62, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
+                    if (tmpInt == 0)
+                    {
+                        b(1, "goto FinalBoss;");
+                    }
+                    tmpInt++;
+                }
+            }
+            else if (c(i, "ins_8(") && c(i, ");")) //Shows dialog
+            {
+                if (!skipDialog)
+                {
+                    b(1, $"msg_read({ex(i, 2)});");
+                }
+                skipDialog = false;
+            }
+            else if (c(i, "ins_9(") && c(i, ");")) //Waits for a dialog pause
+            {
+                b(1, $"msg_wait();");
+            }
+            else if (c(i, "ins_12(") && c(i, ");")) //Waits until there are no bosses
+            {
+                b(1, $"boss_wait();");
+            }
+            else if (s(i, "}")) //End of timeline
+            {
+                b(1, "chapter_set(81);");
+                a("}");
+                break;
+            }
+        }
+        outsideTimeline = true;
+    }
 
     a("");
 
@@ -634,6 +705,8 @@ for (int i = 0; i < FuncsFound.Count; i++)
             customLife = false;
             customLifeBar = false;
             dialogInterrupt = "";
+            bulletS = "";
+            usedEx = -1;
             currentFunction = ex(i, 2).Replace("()", "");
             if (SUB_DEBUG) Console.WriteLine($"Processing Sub/Function: {currentFunction}");
             a("");
@@ -678,9 +751,21 @@ for (int i = 0; i < FuncsFound.Count; i++)
             usesHardcoded = false;
             if (f(currentFunction, "ex_ins_", ref dummyInt))
             {
-                b(1, "int hardcoded1 = 0;");
-                b(1, "int hardcoded2 = 0;");
-                b(1, "int hardcoded3 = 0;");
+                switch (ex(dummyInt, 2))
+                {
+                    case "0": //perfect freeze
+                        b(1, "int hardcoded1 = 0;");
+                        b(1, "int hardcoded2 = 0;");
+                        b(1, "int hardcoded3 = 0;");
+                        break;
+
+                    case "2": //yumekazura
+                        b(1, "float bSpeed1 = 0.0f;");
+                        b(1, "float bSpeed2 = 0.0f;");
+                        b(1, "float bAng = 0.0f;");
+                        break;
+                }
+                usedEx = int.Parse(ex(dummyInt, 2));
                 usesHardcoded = true;
             }
 
@@ -737,10 +822,12 @@ for (int i = 0; i < FuncsFound.Count; i++)
 
             if (bossEndFunctions.Contains(currentFunction)) //detects if the function is used to end the boss
             {
-                b(1, "enemy_flags_set(1024);");
+                b(1, "enemy_flags_set(128);");
                 b(1, "enemy_life_set(99999);");
                 b(1, "enemy_kill_all();");
-                b(1, "enemy_flags_clear(1024);");
+                b(1, "enemy_flags_clear(128);");
+                b(2, "enemy_flags_clear(4);");
+                b(2, "enemy_flags_clear(8);");
                 b(1, "GI3 = 0;");
                 b(1, "boss_set_life_count(0);");
                 if (currentBoss == 0) //daiyousei
@@ -779,11 +866,14 @@ for (int i = 0; i < FuncsFound.Count; i++)
                 switch (stage)
                 {
                     case 1:
+                    case 3:
                         b(1, "chapter_set(43);");
                         break;
 
                     case 2:
                         b(1, "chapter_set(41);");
+                        break;
+
                         break;
                 }
                 AddBackups(i);
@@ -918,7 +1008,7 @@ for (int i = 0; i < FuncsFound.Count; i++)
             D();
             a(eosdSTG[i]);
         }
-        else if (c(i, "ex_ins_call")) //hardcoded functions
+        else if (c(i, "ex_ins_")) //hardcoded functions
         {
             D();
             Hardcoded(i);
@@ -1003,14 +1093,27 @@ for (int i = 0; i < FuncsFound.Count; i++)
                     break;
 
                 //feathers? (spirits/phantoms in FW)
-                case "12" or "8" or "9" or "10" or "11":
+                case "8":
+                case "9":
+                case "10":
+                case "11":
+                case "12":
                     b(1, "anm_source(2);");
-                    b(1, "anm_set_slot(0, 104);");
-                    b(1, "anm_set_slot(1, 323);");
+                    if (stage == 4 && ex(i, 2) == "8") //purple yinyangs on stage 4
+                    {
+                        b(1, "anm_set_slot(0, 62);");
+                        b(1, "anm_set_slot(1, 323);");
+                    }
+                    else
+                    {
+                        b(1, "anm_set_slot(0, 104);");
+                        b(1, "anm_set_slot(1, 323);");
+                    }
                     break;
 
                 //yin-yangs (or smth like that?) in FW
                 case "13":
+                case "14":
                     b(1, "anm_source(2);");
                     //chooses color based on stage:
                     switch (stage)
@@ -1048,11 +1151,34 @@ for (int i = 0; i < FuncsFound.Count; i++)
                     //b(1, "anm_set_slot(1, 323);");
                     break;
 
+                case "15": //red maid fairies
+                    b(1, "anm_source(2);");
+                    b(1, "anm_set_slot_main(0, 25);");
+                    b(1, "anm_set_slot(1, 323);");
+                    break;
+
+                case "16": //brown-ish fairies and magic circles in stages > 3
+                    b(1, "anm_source(2);");
+                    b(1, "anm_set_slot(1, 323);");
+                    if (stage > 3)
+                    {
+                        b(1, "anm_source(1);");
+                        b(1, "anm_set_slot(0, 193);");
+                    }
+                    else
+                    {
+                        b(1, "anm_set_slot_main(0, 30);");
+                    }
+                    break;
 
                 case "64": //daiyousei
-                    BossANM(i, stage);
+                    if (stage == 2) BossANM(i, stage);
                     break;
             }
+        }
+        else if (c(i, "anm_interrupt_main(")) //tells the sprite in slot 0 to run interrupt 1 
+        {
+            b(1, "if ({ex(i, 2)} % 2 == 1) anm_interrupt_slot(0, 1);");
         }
         else if (c(i, "enemy_flag_invisible(") && c(i, ");")) //Makes the enemy "invisible"
         {
@@ -1126,7 +1252,7 @@ for (int i = 0; i < FuncsFound.Count; i++)
         {
             D();
             VarsStoreWorkaround();
-            b(1, $"enemy_create_rel({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/}, {ex(i, 4) /*Y*/}, {ex(i, 6) /*Life*/}, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/} + 1);");
+            b(1, $"enemy_create_abs({ex(i, 2) /*Function*/}, {ex(i, 3) /*X*/} + SCREEN_FIX, {ex(i, 4) /*Y*/}, {ex(i, 6) /*Life*/}, {ex(i, 8) /*Score*/}, {GetItem(ex(i, 7)) /*Item*/});");
         }
         else if (c(i, "enemy_set_hitbox(") && c(i, ");")) //hitbox and hurtbox set
         {
@@ -1137,6 +1263,8 @@ for (int i = 0; i < FuncsFound.Count; i++)
         else if (c(i, "move_velocity(") && c(i, ");")) //set direction and speed
         {
             D();
+            b(1, "move_speed_abs_interp(0, 0, 0.0f);"); //disable already set movement
+            //b(1, $"move_velocity_abs(({ex(i, 3)} < 0.0f ? ({ex(i, 2)} + 3.142f) : {ex(i, 2)}), ({ex(i, 3)} < 0.0f ? ({ex(i, 3)} * -1.0f) : {ex(i, 3)}));");
             a(eosdSTG[i].Replace("move_velocity", "move_velocity_abs"));
         }
         else if (c(i, "move_angular_velocity(") && c(i, ");")) //set direction and speed
@@ -1149,15 +1277,92 @@ for (int i = 0; i < FuncsFound.Count; i++)
             D();
             b(1, $"move_speed_abs_interp(99999, 7, {ex(i, 2)});");
         }
-        else if (c(i, "move_rand_in_bounds(-3.14") && c(i, ", 3.14") && c(i + 1, "move_speed(") && c(i + 2, "move_as_interp_decelerate")) //simplifying stuff basically
+        else if (c(i, "move_rand_in_bounds(-3.14") && c(i, ", 3.14") && c(i + 1, "move_speed(") && (c(i + 2, "move_as_interp_decelerate") || c(i + 2, "move_as_interp_accelerate"))) //simplifying stuff basically
         {
             D();
-            //moves right or left depending on the player's position (up and down are random)
-            b(1, "if (SELF_X >= PLAYER_X || SELF_X > 72.0f)  move_angle_abs(3.142f + (1.571f * RAND_FLOAT_SIGNED));"); //boss is on the right, move to the left
-            b(1, "if (SELF_X < PLAYER_X || SELF_X < -72.0f) move_angle_abs(1.571f * RAND_FLOAT_SIGNED);"); //boss is on the left, move to the right
-            b(1, $"move_speed_abs({ex(i + 1, 2)} * 1.5f);"); //Makes it faster in a random way
-            b(1, $"move_speed_abs_interp({ex(i + 2, 2)}, 4, 0.0f);");
-            b(1, $"if (RAND_INT % 40 == 0) move_rand_interp_abs({ex(i + 2, 2)}, 4, {ex(i + 1, 2)});"); // 1/40 (aprox 2.5%) chance of being really random
+
+            b(1, "move_position_abs_interp(0, 0, 0.0f, 0.0f);"); //reset
+            b(1, "EF4 = RAND_FLOAT * 224.0f * (SELF_X < 0.0f ? 1.0f : -1.0f);");
+            b(1, "if (SELF_X >= -64.0f && SELF_X <= 64.0f) EF4 = RAND_FLOAT_SIGNED * 224.0f;");
+
+            b(1, "math_line_angle(EF4, SELF_X, SELF_Y, EF4, (RAND_FLOAT * 64.0f) + 96.0f);");
+            b(1, "move_angle_abs(EF4);");
+            b(1, $"move_speed_abs({ex(i + 1, 2)} * {(stage == 3 ? "0.85f" : "1.25f")});");
+            b(1, $"move_speed_abs_interp({ex(i + 2, 2)}, {(c(i + 2, "move_as_interp_decelerate") ? "4" : "2")}, 0.0f);");
+
+
+            //same problem as below
+            /*
+            b(1, "if (SELF_X < -64.0f)"); //left        
+            b(1, "{");
+            b(2, "if (SELF_Y < 96.0f) move_angle_abs(RAND_FLOAT * -1.571f);"); //up (point between right and down)
+            b(2, "if (SELF_Y > 128.0f) move_angle_abs(RAND_FLOAT * 1.571f);"); //down (point between right and up)
+            b(1, "}");
+            b(1, "else if (SELF_X > 64.0f)"); //right
+            b(1, "{");
+            b(2, "if (SELF_Y < 96.0f) move_angle_abs(3.142f + (RAND_FLOAT * 1.571f));"); //up (point between left and down)
+            b(2, "if (SELF_Y > 128.0f) move_angle_abs(3.142f + (RAND_FLOAT * -1.571f));"); //down (point between left and up)
+            b(1, "}");
+            b(1, "else");
+            b(1, "{");
+            b(2, $"move_angle_abs(RAND_ANGLE);"); //random angle if there aren't any issues
+            b(1, "}");*/
+
+
+            //didn't work as expected:
+            /*b(1, "if (SELF_X - SCREEN_FIX < 352.0f + 96.0f)");
+            b(1, "{");
+            b(2, "if (SELF_ANGLE_ABS > 1.571f)");
+            b(2, "{");
+            b(3, "move_angle_abs(3.142f - SELF_ANGLE_ABS);");
+            b(2, "}");
+            b(2, "else if (SELF_ANGLE_ABS < -1.571f)");
+            b(2, "{");
+            b(3, "move_angle_abs(-3.142f - SELF_ANGLE_ABS);");
+            b(2, "}");
+            b(1, "}");
+
+            b(1, "if (SELF_X - SCREEN_FIX > 32.0f - 96.0f)");
+            b(1, "{");
+            b(2, "if (SELF_ANGLE_ABS < 1.571f && SELF_ANGLE_ABS >= 0.0f)");
+            b(2, "{");
+            b(3, "move_angle_abs(3.142f - SELF_ANGLE_ABS);");
+            b(2, "}");
+            b(2, "else if (SELF_ANGLE_ABS > -1.571f && SELF_ANGLE_ABS <= 0.0f)");
+            b(2, "{");
+            b(3, "move_angle_abs(-3.142f - SELF_ANGLE_ABS);");
+            b(2, "}");
+            b(1, "}");
+
+            b(1, "if (SELF_Y < 134.0f + 48.0f && SELF_ANGLE_ABS < 0.0f)");
+            b(1, "{");
+            b(2, "move_angle_abs(SELF_ANGLE_ABS * -1.0f);");
+            b(1, "}");
+
+
+            b(1, "if (SELF_Y > 48.0f - 48.0f && SELF_ANGLE_ABS > 0.0f)");
+            b(1, "{");
+            b(2, "move_angle_abs(SELF_ANGLE_ABS * -1.0f);");
+            b(1, "}");
+            b(1, $"move_speed_abs({ex(i + 1, 2)} * 1.25f);");////old: * {(stage == 3 ? "0.875f" : "1.5f")});"); //Makes it faster (except on stage 3)
+            b(1, $"move_speed_abs_interp({ex(i + 2, 2)}, {(c(i + 2, "move_as_interp_decelerate") ? "4" : "2")}, 0.0f);");
+            */
+
+
+            //old:
+            /*//moves right or left depending on the player's position (up and down are random)
+            b(1, "if (SELF_X > 72.0f || SELF_X >= PLAYER_X)"); //boss is on the right, move to the left
+            b(1, "{");
+            b(2, "move_angle_abs(3.142f + (1.17825f * RAND_FLOAT_SIGNED));");
+            b(1, "}");
+            b(1, "else if (SELF_X < -72.0f || SELF_X < PLAYER_X)");
+            b(1, "{");
+            b(2, "move_angle_abs(1.17825f * RAND_FLOAT_SIGNED);"); //boss is on the left, move to the right
+            b(1, "}");
+            b(1, $"move_speed_abs({ex(i + 1, 2)} * {(stage == 3 ? "0.875f" : "1.5f")});"); //Makes it faster (except on stage 3)
+            b(1, $"move_speed_abs_interp({ex(i + 2, 2)}, {(c(i + 2, "move_as_interp_decelerate") ? "4" : "2")}, 0.0f);");
+            //b(1, $"if (RAND_INT % 40 == 0) move_rand_interp_abs({ex(i + 2, 2)}, {(c(i + 2, "move_as_interp_decelerate") ? "4" : "2")}, {ex(i + 1, 2)});"); // 1/40 (aprox 2.5%) chance of being really random
+            */
             i += 2;
         }
         else if (c(i, "move_speed") && c(i, ");")) //set speed
@@ -1195,7 +1400,7 @@ for (int i = 0; i < FuncsFound.Count; i++)
             D();
             b(1, $"move_position_abs_interp({ex(i, 2)}, 0, {ex(i, 3)} + SCREEN_FIX, {ex(i, 4)});");
         }
-        else if (c(i, "move_rand_in_bounds(") && c(i, ");")) //random angle with range
+        else if (c(i, "move_rand(") && c(i, ");")) //random angle
         {
             D();
             b(1, $"move_angle_abs((RAND_FLOAT * ({ex(i, 2)} + {ex(i, 3)})) + {ex(i, 2)});");
@@ -1203,7 +1408,18 @@ for (int i = 0; i < FuncsFound.Count; i++)
         else if (c(i, "move_bounds_set(") && c(i, ");")) //enables move limit
         {
             D();
-            b(1, $"move_bounds_set((({ex(i, 4)} - {ex(i, 2)}) / 2.0f) + SCREEN_FIX, (({ex(i, 5)} - {ex(i, 3)}) / 2.0f) + 64.0f, ({ex(i, 4)} - {ex(i, 2)}) - 32.0f, ({ex(i, 5)} - {ex(i, 3)}) - 48.0f);");
+            b(1, $"move_bounds_set((({ex(i, 4)} - {ex(i, 2)}) / 2.0f) + SCREEN_FIX, (({ex(i, 5)} - {ex(i, 3)}) / 2.0f) + 60.0f, ({ex(i, 4)} - {ex(i, 2)}) - 60.0f, ({ex(i, 5)} - {ex(i, 3)}));");
+
+            //b(1, "move_bounds_set(0.0f, 156.0f, 148.0f, 80.0f);");
+            //b(1, "move_bounds_set(0.0f, 176.0f, 112.0f, 52.0f);");
+            /*if (c(i, "move_bounds_set(32.0f, 48.0f, 352.0f, 176.0f);")) //usually default
+            {
+                
+            }
+            else
+            {
+                b(1, $"move_bounds_set((({ex(i, 4)} - {ex(i, 2)}) / 2.0f) + SCREEN_FIX, (({ex(i, 5)} - {ex(i, 3)}) / 2.0f), ({ex(i, 4)} - {ex(i, 2)}), ({ex(i, 5)} - {ex(i, 3)}));");
+            }*/
         }
         else if (c(i, "move_bounds_disable();")) //disables move limit
         {
@@ -1239,11 +1455,15 @@ for (int i = 0; i < FuncsFound.Count; i++)
             D();
             b(1, $"if ({ex(i, 2)} % 2 == 1)");
             b(1, "{");
-            b(2, "enemy_flags_clear(32);");
+            b(2, "enemy_flags_clear(16);");
+            b(2, "enemy_flags_clear(1);");
+            b(2, "enemy_flags_clear(2);");
             b(1, "}");
             b(1, "else");
             b(1, "{");
-            b(2, "enemy_flags_set(32);");
+            b(2, "enemy_flags_set(16);");
+            b(2, "enemy_flags_set(1);");
+            b(2, "enemy_flags_set(2);");
             b(1, "}");
         }
         else if (c(i, "death_callback_sub(") && c(i, ");")) //function to go to after hp is 0
@@ -1397,22 +1617,36 @@ for (int i = 0; i < FuncsFound.Count; i++)
         else if (c(i, "boss_set(") && c(i, ");")) //sets the boss
         {
             D();
-            a(eosdSTG[i]);
-            b(1, "enemy_flags_set(1024);");
-            b(1, "enemy_kill_all_stones();");
-            b(1, "enemy_kill_all();");
+            b(1, $"if (!BOSS_ALIVE && {ex(i, 2)} != -1)");
+            b(1, "{");
+            b(2, eosdSTG[i]);
             b(2, "enemy_flags_set(128);");
-            b(1, "GI3 = 123;");
+            b(2, "enemy_flags_set(4);");
+            b(2, "enemy_flags_set(8);");
+            b(2, "enemy_kill_all_stones();");
+            b(2, "enemy_kill_all();");
+            b(2, "enemy_flags_set(128);");
+            b(2, "GI3 = 123;");
             currentBoss++;
             switch (stage) //chapter_set 
             {
                 case 2:
                     if (currentBoss == 0) //midboss (daiyousei)
                     {
-                        b(1, "chapter_set(41);");
+                        b(2, "chapter_set(41);");
                     }
                     break;
+
             }
+            b(1, "}");
+            b(1, $"else if ({ex(i, 2)} == -1)");
+            b(1, "{");
+            b(2, "enemy_flags_clear(4);");
+            b(2, "enemy_flags_clear(8);");
+            b(2, "boss_set(-1);");
+            b(2, "enemy_kill_all_stones();");
+            b(2, "GI3 = 0;");
+            b(1, "}");
         }
         else if (c(i, "enemy_interrupt_set(")) //boss interrupts
         {
@@ -1495,6 +1729,11 @@ for (int i = 0; i < FuncsFound.Count; i++)
             b(1, $"{((!alreadySetEX) ? "float" : "")} EXs = {ex(i, 7)};");
             alreadySetEX = true;
         }
+        else if (c(i, "bullet_sounds(") && c(i, ");")) //bullet sounds
+        {
+            bulletS = ConvertSFX(ex(i, 2));
+            alreadySetSound = true;
+        }
         else if (c(i, "bullet_") && c(i, ");")) //bullet aim modes
         {
             if (argsFind(i) == 9) //used to discard other functions like bullet_cancel, bullet_sounds, etc
@@ -1511,6 +1750,10 @@ for (int i = 0; i < FuncsFound.Count; i++)
                 //speed2:
                 b(1, $"EF1 = ({ex(i, 7)} + ((GF1 / 5.0f) + ((GF1 / 5.0f) * _f(DIFFICULTY)))) * ({stage} == 2 && !BOSS_ALIVE ? 1.25f : 1.0f);");//((_f(16) * (GF1 - GF0 ) / 32.0f + GF0));");
 
+
+                b(1, "EF0 = (EF0 < 0.3f ? 0.3f : EF0);");
+                b(1, "EF1 = (EF1 < 0.3f ? 0.3f : EF1);");
+
                 //angles 1 and 2:
                 b(1, $"EF2 = {ex(i, 8)};");
                 b(1, $"EF3 = {ex(i, 9)};");
@@ -1519,12 +1762,29 @@ for (int i = 0; i < FuncsFound.Count; i++)
                 b(1, "math_reduce_angle(EF3);");
 
                 b(1, "shooter_reset(0);");
-                b(1, "shoot_offset(0, EF6, EF7);");
-                b(1, $"shoot_aim_mode(0, {insNumbers[ex(i, 1)]});");
+                b(1, "shoot_offset(0, EF6, EF7 * -1.0f);");
+                temp = insNumbers[ex(i, 1)];
+                b(1, $"shoot_aim_mode(0, {temp});");
                 b(1, $"bullet_sprite(0, {convertBullet(ex(i, 2))}, {ex(i, 3)});");
                 b(1, $"bullet_count(0, (EI0 < 1) ? 1 : EI0, (EI1 < 1) ? 1 : EI1);");//_S(sqrt({RankFormula(1)} * {RankFormula(1)})) + {ex(i, 4)}, _S(sqrt({RankFormula(2)} * {RankFormula(2)})) + {ex(i, 5)});");
-                b(1, $"bullet_speed(0, (EF0 < 0.3f) ? 0.3f : EF0, (EF1 < 0.3f) ? 0.3f : EF1);");//({RankFormula(0)} * {ex(i, 6)}) + {ex(i, 6)}, ({RankFormula(0)} * {ex(i, 7)}) + {ex(i, 7)});");
-                b(1, $"shoot_angle(0, EF2, EF3);");
+                b(1, $"bullet_speed(0, EF0, EF0 - (EF0 - EF1) * _f(EI1 < 2 ? EI1 : EI1 - 1) / _f(EI1));");//({RankFormula(0)} * {ex(i, 6)}) + {ex(i, 6)}, ({RankFormula(0)} * {ex(i, 7)}) + {ex(i, 7)});");
+                if (usedEx == 2)
+                {
+                    b(1, "bSpeed1 = EF0;");
+                    b(1, "bSpeed2 = EF0 - (EF0 - EF1) * _f(EI1 < 2 ? EI1 : EI1 - 1) / _f(EI1);");
+                    b(1, "bAng = EF3;");
+                }
+                switch (temp)
+                {
+                    case "6": //bullet_random_angle
+                    case "8": //bullet_random
+                        b(1, $"shoot_angle(0, ((EF3 - EF2) / 2.0f) + EF2, (EF3 - EF2) / 2.0f);");
+                        break;
+
+                    default:
+                        b(1, $"shoot_angle(0, EF2, EF3);");
+                        break;
+                }
                 tmpInt = int.Parse(ex(i, 10)); //flags
 
                 if (isFlagPresent(tmpInt, 2)) //bullet cloud (small)
@@ -1566,6 +1826,12 @@ for (int i = 0; i < FuncsFound.Count; i++)
                     b(1, $"bullet_effects_add(0, 0, 1, 2, -1, -1.0f, -1.0f);");
                 }
 
+                //meiling's kunai non:
+                if (stage == 3 && ex(i, 2) == "4")
+                {
+                    b(1, "if (BOSS_ALIVE) bullet_effects_add(0, 0, 8, 700, 0, -1.0f, -1.0f);");
+                }
+
                 if (isFlagPresent(tmpInt, 1)) //quick speed once launched
                 {
                     b(1, $"bullet_effects_add(0, 0, 0, -1, -1, -1.0f, -1.0f);");
@@ -1577,7 +1843,11 @@ for (int i = 0; i < FuncsFound.Count; i++)
                 }
                 else if (!alreadySetSound)
                 {
-                    b(1, $"bullet_sound(0, 24, 38);");
+                    b(1, $"bullet_sound(0, {ConvertSFX("7")}, {ConvertSFX("25")});");
+                }
+                else
+                {
+                    b(1, $"bullet_sound(0, {bulletS}, -1);");
                 }
 
                 if (!alreadySetEX) //checks if the ex flags attributes variables were initialized
@@ -1598,7 +1868,18 @@ for (int i = 0; i < FuncsFound.Count; i++)
                     b(1, "}");
                     b(1, "else");
                     b(1, "{");
+                    if (stage == 3 && (ex(i, 3) == "15" || ex(i, 3) == "6" || ex(i, 3) == "5") && (ex(i, 2) == "1" || ex(i, 2) == "3")) //offscreen time and faster effect
+                    {
+                        b(2, "bullet_effects_add(0, 0, 8, 700, -1, -1.0f, -1.0f);");
+                        b(2, "bullet_effects_add(0, 0, 3, 1, -1, -1.25f, 0.0f);");
+                        //b(2, $"bullet_effects_add(0, 0, 2, 120, -1, EXr, EXs);");
+                        /*b(2, $"bullet_effects_add(0, 0, 4, 120, 1, 1.571f, 0.01f);");
+                        b(2, $"bullet_effects_add(0, 0, 3, (EXa < 0) ? 99999 : EXa, -1, EXr, 0.0f);");*/
+                    }
+                    /*else
+                    {*/
                     b(2, $"bullet_effects_add(0, 0, 2, (EXa < 0) ? 99999 : EXa, -1, EXr, EXs);");
+                    /*}*/
                     b(1, "}");
                 }
                 else if (isFlagPresent(tmpInt, 32)) //accelerate with certain speed and angle
@@ -1607,21 +1888,21 @@ for (int i = 0; i < FuncsFound.Count; i++)
                 }
                 else if (isFlagPresent(tmpInt, 64)) //stop, change angle and set speed
                 {
-                    b(1, $"bullet_effects_add(0, 0, 4, EXa, EXb, EXr, EXs + GF1);");
+                    b(1, $"bullet_effects_add(0, 0, 4, EXa, EXb, EXr, EXs);");
                 }
                 else if (isFlagPresent(tmpInt, 128)) //stop, aim to the player, change angle and set speed
                 {
-                    b(1, $"bullet_effects_add_ex(0, 0, 4, EXa, EXb, 1, 0, EXr, EXs + GF1, -1.0f, -1.0f);");
+                    b(1, $"bullet_effects_add_ex(0, 0, 4, EXa, EXb, 1, 0, EXr, EXs, -1.0f, -1.0f);");
                 }
                 else if (isFlagPresent(tmpInt, 256)) //stop, set angle and speed
                 {
-                    b(1, $"bullet_effects_add_ex(0, 0, 4, EXa, EXb, 4, 0, EXr, EXs + GF1, -1.0f, -1.0f);");
+                    b(1, $"bullet_effects_add_ex(0, 0, 4, EXa, EXb, 4, 0, EXr, EXs, -1.0f, -1.0f);");
                 }
                 else if (isFlagPresent(tmpInt, 1024)) //bounce on all walls
                 {
                     b(1, $"bullet_effects_add(0, 0, 6, EXa, 15, EXr, -1.0f);");
                 }
-                else if (isFlagPresent(tmpInt, 1024)) //bounce on non-bottom walls
+                else if (isFlagPresent(tmpInt, 2048)) //bounce on non-bottom walls
                 {
                     b(1, $"bullet_effects_add(0, 0, 6, EXa, 13, EXr, -1.0f);");
                 }
@@ -1720,9 +2001,12 @@ for (int i = 0; i < FuncsFound.Count; i++)
             b(2, "bullet_cancel_radius(640.0f);");
             b(1, "}");
             b(1, "laser_clear_all();");
-            b(1, "if (SELF_LIFE <= 0) enemy_life_set(1950);");
-            b(1, $"enemy_life_set(_S(_f((SELF_LIFE > 501) ? 500 : SELF_LIFE) * 3.75f));");//3.5f));"); //damage reduction
-            b(1, "if (SELF_LIFE <= 0) enemy_life_set(1950);");
+            if (!customLife)
+            {
+                b(1, "if (SELF_LIFE <= 0) enemy_life_set(1950);");
+                b(1, $"enemy_life_set(_S(_f((SELF_LIFE > 501) ? 500 : SELF_LIFE) * 3.75f));");//3.5f));"); //damage reduction
+                b(1, "if (SELF_LIFE <= 0) enemy_life_set(1950);");
+            }
             //if (!customLifeBar) b(1, $"enemy_lifebar_color(0, 999999.0f, 0);");
             BulletRankReset();
         }
@@ -1745,6 +2029,8 @@ for (int i = 0; i < FuncsFound.Count; i++)
         CopyAndRename(noWaitFunctions[i]);
     }
 
+    CreateExInsHelpers();
+
     //ClearCallbacks();
     //AddCallbacks();
 
@@ -1754,6 +2040,138 @@ for (int i = 0; i < FuncsFound.Count; i++)
     Environment.Exit(0);
 }
 
+//loops through all the code and creates functions used by certain hardcoded instructions
+void CreateExInsHelpers()
+{
+    List<string> ins = new List<string>();
+    for (int i = 0; i < FuncsFound.Count; i++)
+    {
+        if (f(FuncsFound[i], "ex_ins_", ref dummyInt))
+        {
+            temp = ex(dummyInt, 2);
+            if (!ins.Contains(temp))
+            {
+                ins.Add(temp);
+                switch (temp)
+                {
+                    case "2": //yumekazura
+                        a("void Yumekazura(int currentDuration, int maxDuration, float maxDistance, float bSpeed1, float bSpeed2, float bAng)");
+                        a("{");
+                        b(1, "float baseAngle = 0.0f;");
+                        b(1, "int currentPoint = 0;");
+                        b(1, "float currentDistance = maxDistance;");
+                        b(1, "float distMulti = maxDistance / 30.0f;");
+                        b(1, "float dir = -1.0f;");
+                        b(1, "float bossX = SELF_X;");
+                        b(1, "float bossY = SELF_Y;");
+                        b(1, "float angle1 = 0.0f;");
+                        a("MainLoop:");
+                        b(1, "if (currentDuration >= maxDuration) return;");
+                        b(1, "if (currentDuration % 30 == 0) baseAngle += 0.6284f;");
+                        b(1, "if (currentDuration % 6 == 0)");
+                        b(1, "{");
+                        b(2, "currentPoint = 0;");
+                        b(2, "angle1 = (3.142f / 3.0f) * (_f(currentDuration) / _f(maxDuration));");
+                        b(2, "if (currentDistance < 32.0f) dir = 1.0f;");
+                        b(2, "if (currentDistance >= 112.0f) dir = -1.0f;");
+                        a("MiniLoop:");
+                        b(2, "__shoot_origin(0, bossX, bossY);");
+                        b(2, "shoot_offset_circle(0, _f(currentPoint) * ((3.142f * 2.0f) / 5.0f), currentDistance);");
+                        b(2, "bullet_speed(0, ((RAND_FLOAT * bSpeed2) + bSpeed1) * (RAND_FLOAT + 1.0f), bSpeed2 * 2.0f);");
+                        b(2, "shoot_now(0);");
+                        b(2, "shoot_angle(0, angle1 + (_f(currentPoint) * 1.2568f), bAng);");
+                        b(2, "angle1 -= (6.284f / 6.0f) * (_f(currentDuration) / _f(maxDuration));");
+                        b(2, "currentPoint += 1;");
+                        b(2, "if (currentPoint < 5) goto MiniLoop;");
+                        b(1, "}");
+                        b(1, $"effect_sound(RAND_INT % 3 == 0 ? {ConvertSFX("7")} : (RAND_INT % 3 == 1 ? {ConvertSFX("8")} : {ConvertSFX("9")}));");
+                        b(1, "if (dir < 0.0f) currentDistance -= distMulti;");
+                        b(1, "if (dir > 0.0f) currentDistance += distMulti;");
+                        b(1, "currentDuration += 1;");
+                        b(1, "ecl_time_sub(1);");
+                        b(1, "goto MainLoop;");
+                        a("}");
+
+                        //old formula, didn't work:
+                        /*
+                        b(1, "float patternPosition = 0.0f;");
+                        b(1, "float targetDistance = 0.0f;");
+                        b(1, "float baseTargetPositionX = 0.0f;");
+                        b(1, "float baseTargetPositionY = 0.0f;");
+                        b(1, "float starPattern1X = 0.0f;");
+                        b(1, "float starPattern1Y = 0.0f;");
+                        b(1, "float starPattern2X = 0.0f;");
+                        b(1, "float starPattern2Y = 0.0f;");
+                        b(1, "float bulletSpeedBackup = bSpeed1;");
+                        b(1, "float speed2 = bSpeed2;");
+                        b(1, "float shootAngle = 0.0f;");
+                        b(1, "int loopInt = 0;");
+                        a("");
+                        a("MainLoop:");
+                        b(1, "if (I2 >= I3) return;");
+                        b(1, "if (I2 == 0)"); //on start
+                        b(1, "{");
+                        b(2, "table0 = RAND_ANGLE;");
+                        b(2, "table1 = table0 + (4.0f * 3.142f / 5.0f);");
+                        b(2, "math_reduce_angle(table1);");
+                        b(1, "}");
+                        b(1, "if (I2 % 30 == 0)"); //on spin
+                        b(1, "{");
+                        b(2, "table0 = table1;");
+                        b(2, "table1 = table1 + (4.0f * 3.142f / 5.0f);");
+                        b(2, "math_reduce_angle(table1);");
+                        b(2, "table2 = table1 + (4.0f * 3.142f / 5.0f);");
+                        b(2, "math_reduce_angle(table2);");
+                        b(2, "table3 = table2 + (4.0f * 3.142f / 5.0f);");
+                        b(2, "math_reduce_angle(table3);");
+                        b(2, "table4 = table2 + (4.0f * 3.142f / 5.0f);");
+                        b(2, "math_reduce_angle(table4);");
+                        b(2, "table5 = table2 + (4.0f * 3.142f / 5.0f);");
+                        b(2, "math_reduce_angle(table5);");
+                        b(1, "}");
+                        b(1, "if (I2 % 6 == 0)"); //on shoot
+                        b(1, "{");
+                        b(2, "patternPosition = _f(I2) / _f(I3);");
+                        b(2, "targetDistance = patternPosition * 0.1f;");
+                        b(2, "baseTargetPositionX = ((PLAYER_X - SCREEN_FIX) - (SELF_X - SCREEN_FIX)) * targetDistance + (SELF_X - SCREEN_FIX);");
+                        b(2, "baseTargetPositionY = (PLAYER_Y - SELF_Y) * targetDistance + SELF_Y;");
+                        b(2, "patternPosition += 0.5f;");
+                        b(2, "shoot_angle(0, (3.142f / 3.0f) * patternPosition, ang2);");
+                        b(2, "shootAngle = (3.142f / 3.0f) * patternPosition;");
+                        b(2, "loopInt = 0;");
+                        a("MiniLoop:");
+                        b(2, "targetDistance = _f(I2 % 30) / 30.0f;");
+                        b(2, "switch(loopInt)");
+                        b(2, "{");
+                        for (int j = 0; j < 5; j++)
+                        {
+                            b(3, $"case {j}:");
+                            b(4, $"math_circle_pos(starPattern1X, starPattern1Y, table{j}, F3);");
+                            b(4, $"math_circle_pos(starPattern2X, starPattern2Y, table{j + 1}, F3);");
+                            b(4, "break;");
+                        }
+                        b(2, "}");
+                        b(2, "starPattern1X = (starPattern1X - starPattern2X) * targetDistance + starPattern1X;");
+                        b(2, "starPattern1Y = (starPattern1Y - starPattern2Y) * targetDistance + starPattern1Y;");
+                        b(2, "__shoot_origin(0, (baseTargetPositionX + starPattern1X) + SCREEN_FIX, (baseTargetPositionY + starPattern1Y) * -1.0f);");
+                        b(2, "bullet_speed(0, (RAND_FLOAT * speed2) + bSpeed1, bSpeed2);");
+                        b(2, "shoot_now(0);");
+                        b(2, "bullet_speed(0, bulletSpeedBackup, bSpeed2);");
+                        b(2, "shootAngle -= (3.142f / 6.0f) * patternPosition;");
+                        b(2, "shoot_angle(0, shootAngle, ang2);");
+                        b(2, "loopInt += 1;");
+                        b(2, "if (loopInt < 5) goto MiniLoop;");
+                        b(1, "}");
+                        b(1, "I2 += 1;");
+                        b(1, "ecl_time_sub(1);");
+                        b(1, "goto MainLoop;");
+                        a("}");*/
+                        break;
+                }
+            }
+        }
+    }
+}
 
 //unused
 /*
@@ -1825,6 +2243,7 @@ void TimelineBossCheck(int stage)
     switch (stage) //waits for boss before executing more functions, otherwise it doesn't spawn anything while a boss is active or GI3 isn't 123
     {
         case 2:
+        case 3:
             b(1, "@BossCheck();");
             break;
     }
@@ -1833,32 +2252,27 @@ void TimelineBossCheck(int stage)
 
 void Hardcoded(int i) //TODO: Add cirno's "Perfect Freeze" function
 {
-    if (c(i, "ex_ins_call")) //with argument
+    switch (ex(i, 2))
     {
-        switch (ex(i, 2))
-        {
-            case "0": //cirno's perfect freeze (only the anm effect and a variable backup is included here)
-                b(1, $"if ({ex(i, 3)} == 1)");
-                b(1, "{");
-                b(2, "hardcoded1 = hardcoded3;");
-                b(1, "}");
-                b(1, "anm_create_front(1, 89);");
-                break;
+        case "0": //cirno's perfect freeze (only the anm effect and a variable backup is included here)
+            b(1, $"if ({ex(i, 3)} == 1)");
+            b(1, "{");
+            b(2, "hardcoded1 = hardcoded3;");
+            b(1, "}");
+            b(1, "anm_create_front(1, 89);");
+            break;
 
-            case "1": //set a random offset for the bullet shooter
-                b(1, $"EF6 = RAND_FLOAT_SIGNED * _f({ex(i, 3)});");
-                b(1, $"EF7 = RAND_FLOAT_SIGNED * _f({ex(i, 3)});");
-                b(1, $"shoot_offset(0, EF6, EF7);");
-                b(1, "shoot_now(0);");
-                break;
-        }
-    }
-    else //without argument
-    {
-        switch (ex(i, 2))
-        {
+        case "1": //set a random offset for the bullet shooter
+            b(1, $"EF6 = RAND_FLOAT_SIGNED * _f({ex(i, 3)});");
+            b(1, $"EF7 = RAND_FLOAT_SIGNED * _f({ex(i, 3)});");
+            b(1, $"shoot_offset(0, EF6, EF7 * -1.0f);");
+            b(1, "shoot_now(0);");
+            break;
 
-        }
+        case "2": //meiling's yumekazura
+            b(1, $"async_stop_id(125);");
+            b(1, $"@Yumekazura(I2, I3, F3, bSpeed1, bSpeed2, bAng) async 125;");
+            break;
     }
 }
 
@@ -1884,7 +2298,7 @@ void BossANM(int i, int stage)
         b(1, "enemy_fog_spawn(128.0f, 7312127);"); //blue
     }
     //this was added here to reduce a bit of the work to the cpu (might not be much compared to other functions xdd, at least is smth :'v)
-    else if (!f(currentFunction, "anm_set_poses", ref dummyInt) && stage == 2) //daiyousei
+    else if (!f(currentFunction, "anm_set_poses", ref dummyInt) && (stage == 2 || stage == 3)) //daiyousei and meiling
     {
         b(1, "enemy_fog_spawn(128.0f, 6934423);"); //green
     }
@@ -2007,7 +2421,7 @@ void BulletRankReset()
 
 string BossItemDrops()
 {
-    return "1, 10"; //10 power items
+    return "(PLAYER_POWER == 400 ? 2 : 1), 10"; //10 power items
 }
 
 void LaserRotateFunc(string id, string ang, bool increase) //adds some weird logic workaround to change relative angles in lasers on line 'l'
@@ -2208,12 +2622,12 @@ string GetItem(string s) //Converts EoSD items into FW's and manages some random
             break;
 
         case "-1": //random between point and power items
-            return "(RAND_INT % 2)";
+            return "(PLAYER_POWER == 400 ? 2 : (RAND_INT % 2))";
             break;
 
         case "0": //power
         case "2": //big power (doesn't really matter since big power in FW is kinda too much)
-            return "1";
+            return "(PLAYER_POWER == 400 ? 2 : 1)";
             break;
 
         case "1": //point
@@ -2262,16 +2676,16 @@ string ConvertSFX(string sfx)
             return "29";
             break;
 
-        case "7": //bullet shoot (short) //unsed
-            /*return "24";
-            break;*/
+        case "7": //bullet shoot (short)
+            return "59"; //requires replacing se_lgods1 to se_tan00 in FW
+            break;
 
         case "8": //bullet shoot (medium)
-            return "25";
+            return "60"; //requires replacing se_lgods2 to se_tan01 in FW
             break;
 
         case "9": //bullet shoot (low)
-            return "26";
+            return "61"; //requires replacing se_lgods3 to se_tan02 in FW
             break;
 
         case "10":
@@ -2331,14 +2745,21 @@ string ConvertSFX(string sfx)
             break;
 
         case "24":
-
             break;
 
-        case "25":
+        case "25": //kira/sparkles 0
+            return "41";
+            break;
 
+        case "26":
+            return "39"; //kira/sparkles 1
+            break;
+
+        case "27":
+            return "40"; //kira/sparkles 2
             break;
     }
-    return "25"; //bullet default
+    return "59"; //bullet default
 }
 
 void CreateLaser(int i, string angle)
@@ -2594,6 +3015,7 @@ string exOg(int line, ref int n, bool find) //removes spaces and extracts string
     {
         for (int i = 0; i < eosdSTG[line].Length || (n <= 0 && !find); i++)
         {
+            builder = exReplaceHelper(builder);
             if ((eosdSTG[line][i] == ' ' || eosdSTG[line][i] == ',' || eosdSTG[line][i] == '(' || eosdSTG[line][i] == ')') && !onString)
             {
                 if (builder != "")
@@ -2661,12 +3083,12 @@ string exOg(int line, ref int n, bool find) //removes spaces and extracts string
         }
 
     }
-    return builder;
+    return exReplaceHelper(builder);
 }
 
 string exReplaceHelper(string s) //used to replace arguments with FW equivalents when grabbing them
 {
-    return s.Replace("SELF_TIME", "PHASE_TIMER");
+    return s.Replace("SELF_TIME", "PHASE_TIMER").Replace("PLAYER_X", "(PLAYER_X - SCREEN_FIX)");
 }
 
 bool e(int l, string d) //checks if a line 'l' ends with 'd'
@@ -2741,9 +3163,10 @@ int HasSubEntry(string name)
     return -1;
 }*/
 
-void ReadSubEntries(int stage)
+bool ReadSubEntries(int stage) //return 'true' if it has to skip midboss dialog, 'false' otherwise
 {
     bool onEntry = false;
+    bool skipDialog = false;
     int currentEntryStage = 0;
     string sub = "";
     for (int i = 0; i < SubsFile.Length; i++)
@@ -2772,6 +3195,14 @@ void ReadSubEntries(int stage)
                 {
                     onEntry = false;
                 }
+                else if (SubsFile[i].Contains("SkipMDialog") && !onEntry)
+                {
+                    skipDialog = true;
+                }
+                else if (SubsFile[i].Contains("BossDebug") && !onEntry)
+                {
+                    timelineBossDebug = true;
+                }
                 else if (onEntry && !SubsFile[i].StartsWith("//"))
                 {
                     if (SubsFile[i].Contains("//"))
@@ -2798,6 +3229,7 @@ void ReadSubEntries(int stage)
             Console.WriteLine($"Added entry with [Sub{tmpEntry.Sub}]");
             Subs.Add(tmpEntry);
         }*/
+    return skipDialog;
 }
 
 //Converts the OnTime/OnLife Aliases to their SubX versions (UNUSED!)
