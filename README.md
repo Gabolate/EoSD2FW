@@ -1,6 +1,10 @@
 # ☯️ EoSD2FW 🔁
 Converts Touhou 6's (EoSD) Scripts into Touhou 20 (FW)
 
+> [!WARNING]
+> This project was abandoned to give space for future, better modding tools.
+
+
 # 🗒️ Info
 **Why did i make this?**
 
